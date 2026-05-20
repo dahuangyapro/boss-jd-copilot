@@ -1,0 +1,70 @@
+---
+description: Boss JD Copilot 产品、目录结构与文件落点（始终生效）
+alwaysApply: true
+---
+
+# Boss JD Copilot
+
+完整说明见 **AGENTS.md** §3。新建/修改代码前**必须先对表落点**，禁止在错误目录新建文件。
+
+## 产品（不可违背）
+
+- 面向**求职者**：JD → AI 个性化招呼语，**不离开 Boss 页**填入/发送。
+- 非目标：列表页预定招呼语、批量爬取、招聘方能力。
+- **仅两页注入**：`zhipin.com/job_detail*`（抽 JD+缓存）、`zhipin.com/web/geek/chat*`（匹配缓存+填入）。其它 Boss 页不注入。
+
+## 目录树（权威）
+
+```text
+boss-jd-copilot/
+├── popup.tsx              # 仅：弹窗壳、状态、跳转设置、开发探针
+├── options.tsx            # 仅：API Key、模型参数（敏感）
+├── background.ts          # 仅：消息路由、AI 请求、storage 编排
+├── content.ts             # 仅：CS 入口、matches、挂载 UI、调用 lib
+├── contents/              # 仅：页面内 React UI（Plasmo CS UI）
+│   └── boss-panel.tsx
+├── lib/                   # 所有可复用逻辑（默认新建在这里）
+│   ├── boss/
+│   │   ├── pages.ts       # URL → 页面类型
+│   │   ├── dom-job-detail.ts
+│   │   └── dom-chat.ts
+│   ├── storage/
+│   │   ├── keys.ts
+│   │   └── job-cache.ts
+│   ├── ai/
+│   │   ├── client.ts
+│   │   └── prompts.ts
+│   ├── messages.ts
+│   └── debug.ts
+├── assets/                # 图标等静态资源
+├── AGENTS.md
+├── build/                 # ❌ 禁止手改、禁止新建源码
+└── .plasmo/               # ❌ 禁止手改
+```
+
+## 新建文件落点表（必查）
+
+| 要写的内容 | 创建位置 | 禁止放在 |
+|------------|----------|----------|
+| Plasmo 扩展入口（manifest 能力） | 根目录 `popup.tsx` / `options.tsx` / `background.ts` / `content.ts` | `lib/`、`build/` |
+| Boss 页面内浮层 UI | `contents/*.tsx` | 根目录堆大组件 |
+| URL 识别、页面类型 | `lib/boss/pages.ts` | `content.ts` 内联 |
+| 详情页/聊天页 DOM 选择器与抽取 | `lib/boss/dom-job-detail.ts`、`dom-chat.ts` | 其它目录 |
+| `chrome.storage` key 与读写 | `lib/storage/` | content / popup |
+| 扩展内消息类型 | `lib/messages.ts` | 各文件散落定义 |
+| 大模型 API、prompt | `lib/ai/` + 调用方 `background.ts` | `content.ts`、`popup.tsx` |
+| 调试上报 | `lib/debug.ts` | Boss 页 `console` 依赖 |
+| 共享 UI 片段（非 CS 入口） | `lib/ui/`（需要时建） | 复制到 popup 与 contents |
+
+根目录入口文件保持**薄**：`import` from `~lib/...`，不写长 DOM 字符串、不写 `fetch` API Key。
+
+## 技术要点
+
+- Plasmo + Chrome MV3 + React + TS + pnpm；`pnpm dev` → 加载 `build/chrome-mv3-dev`。
+- 改 `content.ts` 的 `matches` 后须在 `chrome://extensions` **刷新扩展**。
+- DOM 优先；密钥仅 `options` + `background`。
+- import 使用 `~lib/boss/pages`（`~*` = 项目根，见 `tsconfig.json`）。
+
+## 编码
+
+- 最小 diff；用户确认后再填入发送；不提交 `build/`、`.plasmo/`。
