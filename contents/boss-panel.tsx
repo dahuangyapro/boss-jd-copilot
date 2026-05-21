@@ -8,9 +8,14 @@ import {
 } from "~lib/boss/pages"
 import {
   extractJobDetail,
+  getJobKey,
   observeJobDetail,
   type ExtractedJob
 } from "~lib/boss/dom-job-detail"
+import type {
+  GenerateGreetingRequest,
+  GenerateGreetingResponse
+} from "~lib/messages"
 
 export const config: PlasmoCSConfig = {
   matches: [
@@ -35,6 +40,62 @@ const isJobDetailLike = (
   type: BossPageType
 ): type is JobDetailPageType =>
   type === "job_detail" || type === "job_recommend"
+
+/**
+ * 开发期最常见的坑：在 chrome://extensions 点"重新加载"扩展后，已经打开的 Boss
+ * 页面里 content script 变成"孤儿"——chrome.runtime 被卸载，访问 .sendMessage
+ * 会抛 "Cannot read properties of undefined" 或 "Extension context invalidated"。
+ * 解药就一个：刷新当前 Boss 页面。
+ */
+const isExtensionAlive = (): boolean => {
+  try {
+    return typeof chrome !== "undefined" && !!chrome?.runtime?.id
+  } catch {
+    return false
+  }
+}
+
+const CONTEXT_DEAD_MSG =
+  "扩展上下文已失效（开发期重载扩展后会出现）。请按 Ctrl+R 刷新当前 Boss 页面再试。"
+
+/** content script 无权直接打开 options 页，必须通过 background 代为打开 */
+const requestOpenOptions = () => {
+  try {
+    chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" }).catch(() => {})
+  } catch {
+    // 上下文死了；用户下一次操作会从 generate 流程看到 CONTEXT_DEAD_MSG
+  }
+}
+
+const HEADER_ICON_BTN: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 24,
+  height: 24,
+  border: "none",
+  background: "transparent",
+  color: "#ffffff",
+  cursor: "pointer",
+  borderRadius: 4,
+  padding: 0
+}
+
+const GearIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+)
 
 const BossPanel = () => {
   const [pageType, setPageType] = useState<BossPageType>(() =>
@@ -131,20 +192,29 @@ const BossPanel = () => {
         <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
           JD Copilot · {pageTypeLabel[pageType]}
         </span>
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => setCollapsed((v) => !v)}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#ffffff",
-            cursor: "pointer",
-            fontSize: 14,
-            lineHeight: 1,
-            padding: "2px 6px"
-          }}>
-          {collapsed ? "+" : "−"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={requestOpenOptions}
+            title="打开设置"
+            aria-label="打开设置"
+            style={HEADER_ICON_BTN}>
+            <GearIcon />
+          </button>
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setCollapsed((v) => !v)}
+            title={collapsed ? "展开" : "收起"}
+            aria-label={collapsed ? "展开" : "收起"}
+            style={{
+              ...HEADER_ICON_BTN,
+              fontSize: 14,
+              lineHeight: 1,
+              padding: "2px 6px"
+            }}>
+            {collapsed ? "+" : "−"}
+          </button>
+        </div>
       </div>
 
       {!collapsed && (
@@ -159,6 +229,12 @@ const BossPanel = () => {
   )
 }
 
+type GreetingState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "ready"; text: string }
+  | { kind: "error"; message: string }
+
 const JobDetailView = ({
   urlKey,
   pageType
@@ -168,14 +244,20 @@ const JobDetailView = ({
 }) => {
   const [job, setJob] = useState<ExtractedJob | null>(null)
   const [status, setStatus] = useState<"waiting" | "ready">("waiting")
+  const [greeting, setGreeting] = useState<GreetingState>({ kind: "idle" })
+  const [copied, setCopied] = useState(false)
 
   // URL 变化时重新订阅；推荐页 observer 会持续监听，详情页则首次抽到后即断开
   useEffect(() => {
     setJob(null)
     setStatus("waiting")
+    setGreeting({ kind: "idle" })
+    setCopied(false)
     const cleanup = observeJobDetail(pageType, (next) => {
       setJob(next)
       setStatus("ready")
+      // 切换到新 JD 后旧招呼语作废，避免误以为是新岗位生成的
+      setGreeting({ kind: "idle" })
     })
     return cleanup
   }, [urlKey, pageType])
@@ -187,6 +269,60 @@ const JobDetailView = ({
       setStatus("ready")
     }
   }
+
+  const generate = async () => {
+    if (!job) return
+    if (!isExtensionAlive()) {
+      setGreeting({ kind: "error", message: CONTEXT_DEAD_MSG })
+      return
+    }
+    setGreeting({ kind: "loading" })
+    setCopied(false)
+    const req: GenerateGreetingRequest = {
+      type: "GENERATE_GREETING",
+      jobKey: getJobKey(job),
+      job
+    }
+    try {
+      const resp = (await chrome.runtime.sendMessage(
+        req
+      )) as GenerateGreetingResponse | undefined
+      if (!resp) {
+        setGreeting({
+          kind: "error",
+          message: "background 无响应，请确认扩展已重新加载"
+        })
+        return
+      }
+      // 项目 tsconfig 是 strict:false，用 === 显式比较以触发联合类型收窄
+      if (resp.ok === true) {
+        setGreeting({ kind: "ready", text: resp.greeting })
+      } else {
+        setGreeting({ kind: "error", message: resp.error })
+      }
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e)
+      const friendly =
+        /Extension context invalidated|sendMessage/i.test(raw)
+          ? CONTEXT_DEAD_MSG
+          : raw
+      setGreeting({ kind: "error", message: friendly })
+    }
+  }
+
+  const copy = async () => {
+    if (greeting.kind !== "ready") return
+    try {
+      await navigator.clipboard.writeText(greeting.text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      // 剪贴板权限失败兜底：选中文本让用户手动复制
+      setCopied(false)
+    }
+  }
+
+  const openOptions = requestOpenOptions
 
   if (status === "waiting" || !job) {
     return (
@@ -215,7 +351,7 @@ const JobDetailView = ({
           background: "#f8fafc",
           border: "1px solid #e2e8f0",
           borderRadius: 8,
-          maxHeight: 240,
+          maxHeight: 200,
           overflowY: "auto",
           whiteSpace: "pre-wrap",
           lineHeight: 1.55,
@@ -227,35 +363,103 @@ const JobDetailView = ({
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button
           onClick={reextract}
-          style={{
-            flex: "0 0 auto",
-            padding: "8px 12px",
-            background: "#ffffff",
-            border: "1px solid #cbd5e1",
-            borderRadius: 8,
-            color: "#0f172a",
-            cursor: "pointer",
-            fontSize: 12.5
-          }}>
+          style={{ ...BTN.secondary, flex: "0 0 auto" }}>
           重新提取
         </button>
         <button
-          disabled
+          onClick={generate}
+          disabled={greeting.kind === "loading"}
           style={{
+            ...BTN.primary,
             flex: 1,
-            padding: "8px 12px",
-            background: "#f1f5f9",
-            border: "1px solid #e2e8f0",
-            borderRadius: 8,
-            color: "#94a3b8",
-            cursor: "not-allowed",
-            fontSize: 12.5
+            ...(greeting.kind === "loading"
+              ? { background: "#7dd3fc", cursor: "wait" }
+              : {})
           }}>
-          生成招呼语（待接入）
+          {greeting.kind === "loading"
+            ? "生成中…"
+            : greeting.kind === "ready"
+              ? "重新生成"
+              : "生成招呼语"}
         </button>
       </div>
+
+      {greeting.kind === "error" && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: 8,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: 8,
+            color: "#b91c1c",
+            fontSize: 12.5,
+            lineHeight: 1.5
+          }}>
+          {greeting.message}
+          {/未配置|API Key/.test(greeting.message) && (
+            <>
+              {" "}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  openOptions()
+                }}
+                style={{ color: "#0ea5e9", textDecoration: "underline" }}>
+                打开设置
+              </a>
+            </>
+          )}
+        </div>
+      )}
+
+      {greeting.kind === "ready" && (
+        <div style={{ marginTop: 10 }}>
+          <div
+            style={{
+              padding: 10,
+              background: "#ecfeff",
+              border: "1px solid #a5f3fc",
+              borderRadius: 8,
+              color: "#0f172a",
+              fontSize: 13,
+              lineHeight: 1.6,
+              whiteSpace: "pre-wrap"
+            }}>
+            {greeting.text}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button onClick={copy} style={{ ...BTN.primary, flex: 1 }}>
+              {copied ? "已复制" : "复制到剪贴板"}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
+}
+
+const BTN: Record<"primary" | "secondary", React.CSSProperties> = {
+  primary: {
+    padding: "8px 12px",
+    background: "#0ea5e9",
+    border: "1px solid #0ea5e9",
+    borderRadius: 8,
+    color: "#ffffff",
+    cursor: "pointer",
+    fontSize: 12.5,
+    fontWeight: 500
+  },
+  secondary: {
+    padding: "8px 12px",
+    background: "#ffffff",
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    color: "#0f172a",
+    cursor: "pointer",
+    fontSize: 12.5
+  }
 }
 
 const MetaRow = ({ label, value }: { label: string; value: string }) => (

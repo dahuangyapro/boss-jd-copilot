@@ -1,5 +1,6 @@
 export const STORAGE_KEYS = {
-  jobCachePrefix: "job:"
+  jobCachePrefix: "job:",
+  aiSettings: "aiSettings"
 } as const
 
 export const jobCacheKey = (jobKey: string) =>

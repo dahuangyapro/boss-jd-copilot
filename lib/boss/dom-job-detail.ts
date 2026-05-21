@@ -171,6 +171,22 @@ export const observeJobDetail = (
   }
 }
 
+/**
+ * 给一次 JD 命名出稳定 key，用于 chrome.storage 缓存匹配（详情页生成 → 聊天页填入）。
+ * 优先用 URL 中的 Boss jobId，拿不到则退回 "公司|职位" 组合。
+ */
+export const getJobKey = (job: ExtractedJob): string => {
+  const url = new URL(location.href)
+  // /job_detail/<id>.html
+  const pathMatch = url.pathname.match(/\/job_detail\/([^/.?]+)/)
+  if (pathMatch?.[1]) return `id:${pathMatch[1]}`
+  // /web/geek/jobs?...&jobId=<id> 或类似 query 参数
+  const qJobId =
+    url.searchParams.get("jobId") ?? url.searchParams.get("job_id")
+  if (qJobId) return `id:${qJobId}`
+  return `composite:${job.company}|${job.title}`
+}
+
 export const runOnJobDetailPage = () => {
   // 当前由 contents/boss-panel.tsx 直接调用 observeJobDetail 驱动抽取与展示。
   // 这里保留入口以便后续"无 UI 自动抽取 + 写 storage"接管。

@@ -1,7 +1,7 @@
 {
   "name": "boss-jd-copilot",
   "displayName": "Boss jd copilot",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "一个帮助求职者在 Boss 直聘快速生成个性化招呼语的 AI 工具。",
   "author": "qhcy",
   "scripts": {
@@ -24,6 +24,9 @@
     "typescript": "5.3.3"
   },
   "manifest": {
+    "permissions": [
+      "storage"
+    ],
     "host_permissions": [
       "https://*/*"
     ]
