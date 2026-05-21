@@ -115,5 +115,37 @@ export const S: Record<string, CSSProperties> = {
     cursor: "pointer"
   },
   savedHint: { fontSize: 12, color: "#10b981" },
-  loading: { padding: 32, textAlign: "center", color: "#64748b" }
+  loading: { padding: 32, textAlign: "center", color: "#64748b" },
+  linkBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: 0,
+    background: "transparent",
+    border: "none",
+    color: "#0ea5e9",
+    cursor: "pointer",
+    fontSize: 12.5,
+    fontWeight: 500
+  },
+  activeBadge: {
+    marginLeft: 6,
+    padding: "1px 6px",
+    background: "#ecfeff",
+    border: "1px solid #a5f3fc",
+    borderRadius: 4,
+    color: "#0e7490",
+    fontSize: 11,
+    fontWeight: 500
+  },
+  applyBtn: {
+    padding: "7px 14px",
+    background: "#0ea5e9",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 12.5,
+    fontWeight: 500,
+    cursor: "pointer"
+  }
 }

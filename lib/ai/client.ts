@@ -1,15 +1,23 @@
 import type { ChatMessages } from "~lib/ai/prompts"
 import type { AiSettings } from "~lib/storage/options"
 
-export type GenerateResult =
-  | { ok: true; greeting: string }
+export type ChatResult =
+  | { ok: true; text: string }
   | { ok: false; error: string }
 
-/** OpenAI 兼容协议的 /chat/completions 调用；非流式。 */
-export const generateGreeting = async (
+export type ChatOptions = {
+  /** 默认 0.7；招呼语用 0.7，简历分析想稳一点可传 0.3 */
+  temperature?: number
+  /** 默认 400；简历画像短小，招呼语更短，800 足够覆盖各种情况 */
+  maxTokens?: number
+}
+
+/** OpenAI 兼容协议的 /chat/completions 调用；非流式；通用，不只用于招呼语。 */
+export const chatCompletion = async (
   messages: ChatMessages,
-  settings: AiSettings
-): Promise<GenerateResult> => {
+  settings: AiSettings,
+  opts: ChatOptions = {}
+): Promise<ChatResult> => {
   if (!settings.apiKey.trim()) {
     return { ok: false, error: "尚未配置 API Key，请到扩展选项页填写" }
   }
@@ -34,8 +42,8 @@ export const generateGreeting = async (
           { role: "system", content: messages.system },
           { role: "user", content: messages.user }
         ],
-        temperature: 0.7,
-        max_tokens: 400,
+        temperature: opts.temperature ?? 0.7,
+        max_tokens: opts.maxTokens ?? 400,
         stream: false
       })
     })
@@ -72,15 +80,15 @@ export const generateGreeting = async (
     return { ok: false, error: "响应解析失败（非 JSON）" }
   }
 
-  const greeting = extractGreeting(data)
-  if (!greeting) {
+  const text = extractContent(data)
+  if (!text) {
     return { ok: false, error: "模型未返回有效内容" }
   }
 
-  return { ok: true, greeting }
+  return { ok: true, text }
 }
 
-const extractGreeting = (data: unknown): string | null => {
+const extractContent = (data: unknown): string | null => {
   if (!data || typeof data !== "object") return null
   const choices = (data as { choices?: unknown }).choices
   if (!Array.isArray(choices) || choices.length === 0) return null

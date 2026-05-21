@@ -81,8 +81,8 @@ boss-jd-copilot/
 │   ├── index.tsx             #   入口：state + save
 │   ├── ui.tsx                #   Section/Field 包装 + 样式字典
 │   ├── ProviderSection.tsx   #   provider 预设 + baseURL + key + model
-│   ├── ProfileSection.tsx    #   自我介绍
-│   └── ToneSection.tsx       #   招呼语风格
+│   ├── ProfileSection.tsx    #   自我介绍：textarea + PDF 上传（解析完直接覆盖 textarea）
+│   └── GreetingSection.tsx   #   tone 预设 + 可折叠的"自定义系统 prompt"编辑器
 ├── background.ts             # Service Worker：消息、AI、storage 编排
 ├── content.ts                # Content Script 入口：matches、调度 lib
 ├── contents/
@@ -94,10 +94,13 @@ boss-jd-copilot/
 │   │   └── dom-chat.ts       # 聊天页 DOM 读取 + 填入输入框
 │   ├── storage/
 │   │   ├── keys.ts           # storage key 常量
+│   │   ├── options.ts        # AiSettings 类型 + provider 预设 + 读写
 │   │   └── job-cache.ts      # JD + 招呼语缓存读写
 │   ├── ai/
-│   │   ├── client.ts         # 调用大模型
-│   │   └── prompts.ts        # 招呼语 prompt 模板
+│   │   ├── client.ts         # chatCompletion：通用 OpenAI 兼容 fetch
+│   │   ├── prompts.ts        # 招呼语 prompt：PRESET_PROMPTS + customPrompt 覆盖
+│   │   └── resume-prompt.ts  # 简历 → 个人画像 的分析 prompt
+│   ├── pdf.ts                # PDF 文本抽取（pdfjs-dist；在 options 页执行）
 │   ├── messages.ts           # chrome.runtime 消息类型
 │   └── debug.ts              # 调试信息上报 background
 ├── assets/                   # 图标等静态资源
@@ -119,6 +122,7 @@ boss-jd-copilot/
 | `chrome.storage.local` | `lib/storage/` | content 内硬编码 key |
 | 扩展内消息协议 | `lib/messages.ts` | 多处重复 type |
 | 大模型 HTTP、prompt 文案 | `lib/ai/`（由 `background.ts` 调用） | **禁止** content / popup |
+| PDF / DOCX 等文件解析 | `lib/pdf.ts`（在 options 页执行，纯文本送 background） | background（SW 没 DOM） |
 | 共享 React 片段 | `lib/ui/`（按需创建） | popup 与 contents 各复制一份 |
 | 产品/结构文档 | `AGENTS.md`、`.cursor/rules/*.mdc` | `README` 代替 AGENTS |
 

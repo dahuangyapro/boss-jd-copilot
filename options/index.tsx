@@ -7,9 +7,9 @@ import {
   type AiSettings
 } from "~lib/storage/options"
 
+import { GreetingSection } from "./GreetingSection"
 import { ProfileSection } from "./ProfileSection"
 import { ProviderSection } from "./ProviderSection"
-import { ToneSection } from "./ToneSection"
 import { S, type Patcher } from "./ui"
 
 const OptionsPage = () => {
@@ -49,7 +49,7 @@ const OptionsPage = () => {
 
         <ProviderSection settings={settings} patch={patch} />
         <ProfileSection settings={settings} patch={patch} />
-        <ToneSection settings={settings} patch={patch} />
+        <GreetingSection settings={settings} patch={patch} />
 
         <div style={S.footer}>
           <button style={S.saveBtn} onClick={onSave}>

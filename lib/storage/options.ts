@@ -9,7 +9,10 @@ export type AiSettings = {
   model: string
   /** 求职者自述（经验、技能、求职方向）；prompt 中作为"我的画像"段落注入 */
   userProfile: string
+  /** 快速预设的招呼语风格；当 customPrompt 为空时生效 */
   tone: GreetingTone
+  /** 用户自定义系统 prompt；非空时**整段**顶替预设。用户可"加载预设到编辑器"再改 */
+  customPrompt: string
 }
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
@@ -17,7 +20,8 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   apiKey: "",
   model: "deepseek-chat",
   userProfile: "",
-  tone: "concise"
+  tone: "concise",
+  customPrompt: ""
 }
 
 /**

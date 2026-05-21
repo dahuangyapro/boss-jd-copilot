@@ -27,8 +27,8 @@ boss-jd-copilot/
 │   ├── index.tsx          #   入口：state + save
 │   ├── ui.tsx             #   Section/Field/styles
 │   ├── ProviderSection.tsx
-│   ├── ProfileSection.tsx
-│   └── ToneSection.tsx
+│   ├── ProfileSection.tsx #   textarea + PDF 上传（解析完直接覆盖 textarea）
+│   └── GreetingSection.tsx#   tone 预设 + 自定义 prompt 编辑器
 ├── background.ts          # 仅：消息路由、AI 请求、storage 编排
 ├── content.ts             # 仅：CS 入口、matches、挂载 UI、调用 lib
 ├── contents/              # 仅：页面内 React UI（Plasmo CS UI）
