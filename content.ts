@@ -7,6 +7,7 @@ import { runOnJobDetailPage } from "~lib/boss/dom-job-detail"
 export const config: PlasmoCSConfig = {
   matches: [
     "https://www.zhipin.com/job_detail*",
+    "https://www.zhipin.com/web/geek/jobs*",
     "https://www.zhipin.com/web/geek/chat*"
   ]
 }
@@ -14,7 +15,8 @@ export const config: PlasmoCSConfig = {
 const main = () => {
   const pageType = getPageType(location.href)
 
-  if (pageType === "job_detail") {
+  // 独立详情页与推荐列表页右侧详情面板都能拿到完整 JD，复用同一抽取入口
+  if (pageType === "job_detail" || pageType === "job_recommend") {
     runOnJobDetailPage()
     return
   }

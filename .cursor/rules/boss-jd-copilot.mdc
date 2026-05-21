@@ -10,8 +10,13 @@ alwaysApply: true
 ## 产品（不可违背）
 
 - 面向**求职者**：JD → AI 个性化招呼语，**不离开 Boss 页**填入/发送。
-- 非目标：列表页预定招呼语、批量爬取、招聘方能力。
-- **仅两页注入**：`zhipin.com/job_detail*`（抽 JD+缓存）、`zhipin.com/web/geek/chat*`（匹配缓存+填入）。其它 Boss 页不注入。
+- 非目标：批量爬取、自动化投递、招聘方能力。
+- **仅三页注入**：
+  - `zhipin.com/job_detail*` — 独立详情页，抽 JD + 缓存
+  - `zhipin.com/web/geek/jobs*` — 推荐列表（左列表 + 右详情面板），右侧 DOM 同详情页，抽 JD + 缓存；用户在左列表切换卡片时右侧会替换，observer 需持续监听
+  - `zhipin.com/web/geek/chat*` — 匹配缓存 + 填入输入框
+
+  其它 Boss 页（个人中心、消息、`gongsi/*` 等）不注入。
 
 ## 目录树（权威）
 
