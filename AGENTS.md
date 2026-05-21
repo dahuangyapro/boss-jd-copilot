@@ -58,12 +58,15 @@ web/geek/chat（读当前会话职位名 → 匹配缓存 → 填入输入框）
 
 | 文件 / 目录 | 作用 |
 |-------------|------|
-| `popup.tsx` | 扩展图标弹窗（设置、状态、调试探针） |
-| `options.tsx` | 选项页（**API Key**、模型配置等敏感信息放这里） |
+| `popup.tsx` 或 `popup/index.tsx` | 扩展图标弹窗（设置、状态、调试探针） |
+| `options.tsx` 或 `options/index.tsx` | 选项页（**API Key**、模型配置等敏感信息放这里）。当前已折叠为 `options/`，子组件同目录 |
 | `content.ts` 或 `contents/*.tsx` | 注入 Boss 页面的 Content Script（**核心业务**） |
-| `background.ts` | Service Worker：AI 请求、跨页消息、storage 编排 |
+| `background.ts` 或 `background/index.ts` | Service Worker：AI 请求、跨页消息、storage 编排 |
 | `build/chrome-mv3-dev` | `pnpm dev` 开发构建产物，Chrome「加载已解压的扩展程序」选此目录 |
 | `build/chrome-mv3-prod` | `pnpm build` 生产构建 |
+
+> Plasmo 入口的"文件夹形式"（`xxx/index.tsx` + 同目录子组件）等价于单文件形式。
+> 入口长到 ~200 行或将频繁改动时折叠成文件夹；子组件**只在该入口私用**，跨入口共享的 UI 走 `lib/ui/`。
 
 新增 Content Script 的 `matches` 变更后，需在 `chrome://extensions` **刷新扩展**（manifest 才会更新）。
 
@@ -74,7 +77,12 @@ web/geek/chat（读当前会话职位名 → 匹配缓存 → 填入输入框）
 ```text
 boss-jd-copilot/
 ├── popup.tsx                 # 扩展弹窗入口（薄）
-├── options.tsx               # 选项页：API Key、模型配置
+├── options/                  # 选项页：API Key、模型配置（已折叠为文件夹）
+│   ├── index.tsx             #   入口：state + save
+│   ├── ui.tsx                #   Section/Field 包装 + 样式字典
+│   ├── ProviderSection.tsx   #   provider 预设 + baseURL + key + model
+│   ├── ProfileSection.tsx    #   自我介绍
+│   └── ToneSection.tsx       #   招呼语风格
 ├── background.ts             # Service Worker：消息、AI、storage 编排
 ├── content.ts                # Content Script 入口：matches、调度 lib
 ├── contents/
@@ -103,7 +111,7 @@ boss-jd-copilot/
 
 | 要写的内容 | 创建位置 | 不要放在 |
 |------------|----------|----------|
-| Plasmo 扩展能力入口 | 根目录 `popup.tsx` / `options.tsx` / `background.ts` / `content.ts` | `lib/`、`build/` |
+| Plasmo 扩展能力入口 | 根目录单文件（`popup.tsx` / `background.ts` / `content.ts`）或同名文件夹 + `index`（如 `options/index.tsx`） | `lib/`、`build/` |
 | Boss 页内嵌 UI | `contents/*.tsx` | 根目录长篇 React |
 | 页面类型 / URL 判断 | `lib/boss/pages.ts` | `content.ts` 内联一长段 |
 | 职位详情 DOM、JD 抽取 | `lib/boss/dom-job-detail.ts` | popup、background |

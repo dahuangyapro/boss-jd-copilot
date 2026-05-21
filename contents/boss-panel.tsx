@@ -246,6 +246,7 @@ const JobDetailView = ({
   const [status, setStatus] = useState<"waiting" | "ready">("waiting")
   const [greeting, setGreeting] = useState<GreetingState>({ kind: "idle" })
   const [copied, setCopied] = useState(false)
+  const [jdCopied, setJdCopied] = useState(false)
 
   // URL 变化时重新订阅；推荐页 observer 会持续监听，详情页则首次抽到后即断开
   useEffect(() => {
@@ -253,6 +254,7 @@ const JobDetailView = ({
     setStatus("waiting")
     setGreeting({ kind: "idle" })
     setCopied(false)
+    setJdCopied(false)
     const cleanup = observeJobDetail(pageType, (next) => {
       setJob(next)
       setStatus("ready")
@@ -322,6 +324,17 @@ const JobDetailView = ({
     }
   }
 
+  const copyJd = async () => {
+    if (!job) return
+    try {
+      await navigator.clipboard.writeText(job.jdText)
+      setJdCopied(true)
+      setTimeout(() => setJdCopied(false), 1800)
+    } catch {
+      setJdCopied(false)
+    }
+  }
+
   const openOptions = requestOpenOptions
 
   if (status === "waiting" || !job) {
@@ -360,11 +373,18 @@ const JobDetailView = ({
         }}>
         {job.jdText}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
         <button
           onClick={reextract}
+          title="重新从页面 DOM 抽取 JD"
           style={{ ...BTN.secondary, flex: "0 0 auto" }}>
           重新提取
+        </button>
+        <button
+          onClick={copyJd}
+          title="复制 JD 原文到剪贴板（便于在其他 AI 工具里用）"
+          style={{ ...BTN.secondary, flex: "0 0 auto" }}>
+          {jdCopied ? "已复制" : "复制 JD"}
         </button>
         <button
           onClick={generate}

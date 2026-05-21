@@ -23,7 +23,12 @@ alwaysApply: true
 ```text
 boss-jd-copilot/
 ├── popup.tsx              # 仅：弹窗壳、状态、跳转设置、开发探针
-├── options.tsx            # 仅：API Key、模型参数（敏感）
+├── options/               # 选项页（已折叠为文件夹形式）
+│   ├── index.tsx          #   入口：state + save
+│   ├── ui.tsx             #   Section/Field/styles
+│   ├── ProviderSection.tsx
+│   ├── ProfileSection.tsx
+│   └── ToneSection.tsx
 ├── background.ts          # 仅：消息路由、AI 请求、storage 编排
 ├── content.ts             # 仅：CS 入口、matches、挂载 UI、调用 lib
 ├── contents/              # 仅：页面内 React UI（Plasmo CS UI）
