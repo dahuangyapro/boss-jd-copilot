@@ -12,6 +12,13 @@ import {
   observeJobDetail,
   type ExtractedJob
 } from "~lib/boss/dom-job-detail"
+import {
+  addProbeStyles,
+  inspectElement,
+  removeProbeStyles,
+  setHover,
+  type ProbedInfo
+} from "~lib/boss/probe"
 import type {
   GenerateGreetingRequest,
   GenerateGreetingResponse
@@ -81,6 +88,22 @@ const HEADER_ICON_BTN: React.CSSProperties = {
   padding: 0
 }
 
+const SearchIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true">
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+)
+
 const GearIcon = () => (
   <svg
     width="14"
@@ -107,6 +130,11 @@ const BossPanel = () => {
     left: Math.max(0, window.innerWidth - PANEL_WIDTH - DEFAULT_RIGHT),
     top: DEFAULT_TOP
   }))
+  const [probeMode, setProbeMode] = useState(false)
+  const [probed, setProbed] = useState<ProbedInfo | null>(null)
+  const [probeLocked, setProbeLocked] = useState(false)
+  // ref 给 pointermove 闭包读，避免 locked 一变就重挂全局监听
+  const probeLockedRef = useRef(false)
 
   // Boss 是 SPA：pushState 切换路由时 URL 变了但 CS 不会重载，需手动监听
   useEffect(() => {
@@ -126,6 +154,58 @@ const BossPanel = () => {
       history.pushState = origPushState
     }
   }, [])
+
+  /**
+   * 探针模式：开启后给页面注入蓝框 + crosshair 样式，监听全局 pointermove 实时更新
+   * 选择器/HTML 预览；click 拦截掉避免被 Boss 链接带跳走；Esc 退出。
+   * Plasmo CSUI 在 <plasmo-csui> 自定义元素里，事件 retarget 后 target 就是它，
+   * 用这个特征过滤掉浮层自己的鼠标事件——hover 浮层时不更新预览也不清高亮。
+   */
+  useEffect(() => {
+    if (!probeMode) return
+    // 每次开探针从干净状态开始：未锁定、无信息
+    probeLockedRef.current = false
+    setProbeLocked(false)
+    setProbed(null)
+    addProbeStyles()
+
+    const isInPanel = (target: EventTarget | null): boolean =>
+      target instanceof Element &&
+      target.tagName.toLowerCase().startsWith("plasmo-")
+
+    const onMove = (e: PointerEvent) => {
+      if (probeLockedRef.current) return // 已锁定：鼠标随便动，不再覆盖选中
+      if (isInPanel(e.target)) return
+      if (e.target instanceof Element) {
+        setHover(e.target)
+        setProbed(inspectElement(e.target))
+      }
+    }
+    const onClick = (e: MouseEvent) => {
+      if (isInPanel(e.target)) return
+      // 拦掉 Boss 的链接/按钮默认行为，避免一点就被跳走
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      // 锁定当前选中：再 hover 也不会变；退出探针才能重新选
+      probeLockedRef.current = true
+      setProbeLocked(true)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProbeMode(false)
+    }
+
+    document.addEventListener("pointermove", onMove, true)
+    document.addEventListener("click", onClick, true)
+    document.addEventListener("keydown", onKey, true)
+
+    return () => {
+      document.removeEventListener("pointermove", onMove, true)
+      document.removeEventListener("click", onClick, true)
+      document.removeEventListener("keydown", onKey, true)
+      setHover(null)
+      removeProbeStyles()
+    }
+  }, [probeMode])
 
   // 拖动状态放 ref，避免 pointermove 回调拿到陈旧的 pos
   const dragOffset = useRef<{ x: number; y: number } | null>(null)
@@ -195,6 +275,26 @@ const BossPanel = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button
             onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              setProbeMode((v) => !v)
+              if (collapsed) setCollapsed(false)
+            }}
+            title={
+              probeMode
+                ? "退出探针模式（Esc）"
+                : "DOM 探针：鼠标定位元素并复制选择器"
+            }
+            aria-label="DOM 探针"
+            style={{
+              ...HEADER_ICON_BTN,
+              background: probeMode
+                ? "rgba(255,255,255,0.25)"
+                : "transparent"
+            }}>
+            <SearchIcon />
+          </button>
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={requestOpenOptions}
             title="打开设置"
             aria-label="打开设置"
@@ -219,14 +319,184 @@ const BossPanel = () => {
 
       {!collapsed && (
         <div style={{ padding: 12 }}>
-          {isJobDetailLike(pageType) && (
-            <JobDetailView urlKey={currentUrl} pageType={pageType} />
+          {probeMode ? (
+            <ProbeView
+              info={probed}
+              locked={probeLocked}
+              onExit={() => setProbeMode(false)}
+              onReselect={() => {
+                // 解锁继续选；清掉旧高亮，hover 新元素时再画
+                probeLockedRef.current = false
+                setProbeLocked(false)
+                setProbed(null)
+                setHover(null)
+              }}
+            />
+          ) : (
+            <>
+              {isJobDetailLike(pageType) && (
+                <JobDetailView urlKey={currentUrl} pageType={pageType} />
+              )}
+              {pageType === "chat" && <ChatPlaceholder />}
+            </>
           )}
-          {pageType === "chat" && <ChatPlaceholder />}
         </div>
       )}
     </div>
   )
+}
+
+const ProbeView = ({
+  info,
+  locked,
+  onExit,
+  onReselect
+}: {
+  info: ProbedInfo | null
+  locked: boolean
+  onExit: () => void
+  onReselect: () => void
+}) => {
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {})
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+          color: "#475569",
+          fontSize: 12.5
+        }}>
+        <span>
+          {locked
+            ? "已锁定选中，点「重新选择」继续，或按 Esc 退出"
+            : "鼠标移到元素上预览，点击锁定；Esc 退出"}
+        </span>
+        <button
+          onClick={locked ? onReselect : onExit}
+          style={{
+            padding: "4px 10px",
+            background: locked ? "#0ea5e9" : "#ffffff",
+            border: `1px solid ${locked ? "#0ea5e9" : "#cbd5e1"}`,
+            borderRadius: 6,
+            color: locked ? "#ffffff" : "#0f172a",
+            cursor: "pointer",
+            fontSize: 12,
+            whiteSpace: "nowrap"
+          }}>
+          {locked ? "重新选择" : "退出"}
+        </button>
+      </div>
+
+      {!info && (
+        <div style={{ color: "#94a3b8", padding: "8px 0" }}>
+          移动鼠标到页面任意元素…
+        </div>
+      )}
+
+      {info && (
+        <>
+          <ProbeRow label="选择器">
+            <code style={CODE_STYLE}>{info.selector || "—"}</code>
+          </ProbeRow>
+          <ProbeRow label="tag">
+            <code style={CODE_STYLE}>{info.tag}</code>
+          </ProbeRow>
+          <ProbeRow label="class">
+            <code style={CODE_STYLE}>{info.className || "—"}</code>
+          </ProbeRow>
+          <ProbeRow label="文本">
+            <span style={{ wordBreak: "break-all" }}>{info.text || "—"}</span>
+          </ProbeRow>
+          <details style={{ marginTop: 6 }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                color: "#475569",
+                fontSize: 12.5
+              }}>
+              outerHTML（前 400 字符）
+            </summary>
+            <pre
+              style={{
+                marginTop: 6,
+                padding: 8,
+                background: "#0f172a",
+                color: "#e2e8f0",
+                borderRadius: 6,
+                maxHeight: 160,
+                overflow: "auto",
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all"
+              }}>
+              {info.outerHtml}
+            </pre>
+          </details>
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <button
+              onClick={() => copy(info.selector)}
+              style={PROBE_BTN}
+              title="复制选择器到剪贴板">
+              复制选择器
+            </button>
+            <button
+              onClick={() => copy(info.text)}
+              style={PROBE_BTN}
+              title="复制元素文本">
+              复制文本
+            </button>
+            <button
+              onClick={() => copy(info.outerHtml)}
+              style={PROBE_BTN}
+              title="复制 outerHTML 片段">
+              复制 HTML
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  )
+}
+
+const ProbeRow = ({
+  label,
+  children
+}: {
+  label: string
+  children: React.ReactNode
+}) => (
+  <div style={{ display: "flex", gap: 8, marginBottom: 4, fontSize: 12.5 }}>
+    <span style={{ color: "#94a3b8", flex: "0 0 44px" }}>{label}</span>
+    <span style={{ flex: 1, color: "#0f172a" }}>{children}</span>
+  </div>
+)
+
+const CODE_STYLE: React.CSSProperties = {
+  fontFamily:
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  fontSize: 11.5,
+  background: "#f1f5f9",
+  padding: "1px 5px",
+  borderRadius: 4,
+  wordBreak: "break-all"
+}
+
+const PROBE_BTN: React.CSSProperties = {
+  flex: 1,
+  padding: "6px 8px",
+  background: "#ffffff",
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  color: "#0f172a",
+  cursor: "pointer",
+  fontSize: 12
 }
 
 type GreetingState =

@@ -37,7 +37,8 @@ boss-jd-copilot/
 │   ├── boss/
 │   │   ├── pages.ts       # URL → 页面类型
 │   │   ├── dom-job-detail.ts
-│   │   └── dom-chat.ts
+│   │   ├── dom-chat.ts
+│   │   └── probe.ts       # DOM 探针（绕过 Boss 反调试用）
 │   ├── storage/
 │   │   ├── keys.ts
 │   │   └── job-cache.ts
@@ -60,6 +61,7 @@ boss-jd-copilot/
 | Boss 页面内浮层 UI | `contents/*.tsx` | 根目录堆大组件 |
 | URL 识别、页面类型 | `lib/boss/pages.ts` | `content.ts` 内联 |
 | 详情页/聊天页 DOM 选择器与抽取 | `lib/boss/dom-job-detail.ts`、`dom-chat.ts` | 其它目录 |
+| 找选择器（Boss 不让开 F12） | `lib/boss/probe.ts` + 浮层探针按钮 | 依赖 Boss 控制台 |
 | `chrome.storage` key 与读写 | `lib/storage/` | content / popup |
 | 扩展内消息类型 | `lib/messages.ts` | 各文件散落定义 |
 | 大模型 API、prompt | `lib/ai/` + 调用方 `background.ts` | `content.ts`、`popup.tsx` |

@@ -91,7 +91,8 @@ boss-jd-copilot/
 │   ├── boss/
 │   │   ├── pages.ts          # URL → job_detail | chat | unknown
 │   │   ├── dom-job-detail.ts # 详情页 DOM 抽取
-│   │   └── dom-chat.ts       # 聊天页 DOM 读取 + 填入输入框
+│   │   ├── dom-chat.ts       # 聊天页 DOM 读取 + 填入输入框
+│   │   └── probe.ts          # DOM 探针（绕过 Boss 反调试，浮层里实时拾取选择器）
 │   ├── storage/
 │   │   ├── keys.ts           # storage key 常量
 │   │   ├── options.ts        # AiSettings 类型 + provider 预设 + 读写
@@ -119,6 +120,7 @@ boss-jd-copilot/
 | 页面类型 / URL 判断 | `lib/boss/pages.ts` | `content.ts` 内联一长段 |
 | 职位详情 DOM、JD 抽取 | `lib/boss/dom-job-detail.ts` | popup、background |
 | 聊天页 DOM、填入招呼语 | `lib/boss/dom-chat.ts` | popup、background |
+| 调试 / 找选择器（Boss 不让开 F12） | `lib/boss/probe.ts` + 浮层探针按钮 | 依赖 Boss 控制台 |
 | `chrome.storage.local` | `lib/storage/` | content 内硬编码 key |
 | 扩展内消息协议 | `lib/messages.ts` | 多处重复 type |
 | 大模型 HTTP、prompt 文案 | `lib/ai/`（由 `background.ts` 调用） | **禁止** content / popup |
