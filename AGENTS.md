@@ -175,6 +175,7 @@ flowchart LR
 - **Background**：调用大模型 API；勿在 content script 内嵌 API Key。
 - **Storage**：详情页写入的 JD + 生成的招呼语；聊天页只读匹配。
 - **Popup**：配置、手动触发、开发期 DOM 探针；主流程尽量在页面内完成（「不离开当前页」）。
+- **Host permissions（商城合规）**：常驻 `host_permissions` 只列 zhipin.com；用户配置的 AI baseURL 走 `optional_host_permissions: https://*/*`，在 options 页"保存"时按 user gesture 同步调 `chrome.permissions.request`。新增任何外部 fetch 域名时务必沿用同一套（不要把常驻权限放宽回 `https://*/*`，会被审核打回）。
 
 ## 5. 实现优先级（未完成任务参考）
 

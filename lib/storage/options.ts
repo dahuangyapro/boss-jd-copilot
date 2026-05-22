@@ -69,9 +69,47 @@ export const TONE_LABELS: Record<GreetingTone, string> = {
   formal: "正式礼貌"
 }
 
+/**
+ * 这三个 helper 都是空字符串/无效 URL 时返回 false/null，调用方按业务给提示。
+ */
+export const baseUrlToOrigin = (baseURL: string): string | null => {
+  try {
+    return new URL(baseURL.trim()).origin
+  } catch {
+    return null
+  }
+}
+
+export const hasBaseUrlPermission = async (
+  baseURL: string
+): Promise<boolean> => {
+  const origin = baseUrlToOrigin(baseURL)
+  if (!origin) return false
+  try {
+    return await chrome.permissions.contains({ origins: [`${origin}/*`] })
+  } catch {
+    return false
+  }
+}
+
+/** 必须从 user gesture 同步调用（onClick/onChange），否则 Chrome 拒绝弹窗 */
+export const requestBaseUrlPermission = async (
+  baseURL: string
+): Promise<boolean> => {
+  const origin = baseUrlToOrigin(baseURL)
+  if (!origin) return false
+  try {
+    return await chrome.permissions.request({ origins: [`${origin}/*`] })
+  } catch {
+    return false
+  }
+}
+
 export const getAiSettings = async (): Promise<AiSettings> => {
   const result = await chrome.storage.local.get(STORAGE_KEYS.aiSettings)
-  const stored = result[STORAGE_KEYS.aiSettings] as Partial<AiSettings> | undefined
+  const stored = result[STORAGE_KEYS.aiSettings] as
+    | Partial<AiSettings>
+    | undefined
   return { ...DEFAULT_AI_SETTINGS, ...(stored ?? {}) }
 }
 

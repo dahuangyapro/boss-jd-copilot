@@ -29,6 +29,9 @@
       "storage"
     ],
     "host_permissions": [
+      "https://*.zhipin.com/*"
+    ],
+    "optional_host_permissions": [
       "https://*/*"
     ]
   }

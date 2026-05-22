@@ -83,6 +83,7 @@ boss-jd-copilot/
 - 改 `content.ts` 的 `matches` 后须在 `chrome://extensions` **刷新扩展**。
 - DOM 优先；密钥仅 `options` + `background`。
 - import 使用 `~lib/boss/pages`（`~*` = 项目根，见 `tsconfig.json`）。
+- **Host permissions**：常驻只列 `https://*.zhipin.com/*`；AI baseURL 走 `optional_host_permissions` + options 页 user-gesture 同步调 `chrome.permissions.request`。新增外部 fetch 域名沿用同一套，**禁止把常驻权限放宽回 `https://*/*`**（商城审核必拦）。
 
 ## 编码
 

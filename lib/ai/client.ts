@@ -1,5 +1,9 @@
 import type { ChatMessages } from "~lib/ai/prompts"
-import type { AiSettings } from "~lib/storage/options"
+import {
+  baseUrlToOrigin,
+  hasBaseUrlPermission,
+  type AiSettings
+} from "~lib/storage/options"
 
 export type ChatResult =
   | { ok: true; text: string }
@@ -23,6 +27,19 @@ export const chatCompletion = async (
   }
   if (!settings.baseURL.trim() || !settings.model.trim()) {
     return { ok: false, error: "baseURL 或模型名未配置" }
+  }
+
+  // host_permissions 在 manifest 里只覆盖 zhipin，AI 域名走 optional_host_permissions。
+  // 没授权时 fetch 会以 CORS-like 形式失败，错误信息很迷惑——先 contains 一下给清晰提示。
+  const origin = baseUrlToOrigin(settings.baseURL)
+  if (!origin) {
+    return { ok: false, error: "baseURL 格式无效，请检查是否带 https://" }
+  }
+  if (!(await hasBaseUrlPermission(settings.baseURL))) {
+    return {
+      ok: false,
+      error: `未授权访问 ${origin}。请到扩展选项页点「保存」授权该域名。`
+    }
   }
 
   // 用户可能填带或不带尾斜杠的 baseURL；统一去尾再拼端点
