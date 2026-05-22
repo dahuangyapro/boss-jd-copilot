@@ -31,13 +31,8 @@ boss-jd-copilot/
 │   └── GreetingSection.tsx#   tone 预设 + 自定义 prompt 编辑器
 ├── background.ts          # 仅：消息路由、AI 请求、storage 编排
 ├── content.ts             # 仅：CS 入口、matches、挂载 UI、调用 lib
-├── contents/              # 仅：页面内 React UI（Plasmo CS UI）
-│   └── boss-panel/        # 浮层（已折叠为文件夹形式）
-│       ├── index.tsx      #   CS 入口 + 容器壳 + 拖动 + 探针 state
-│       ├── ui.tsx         #   共享样式 / 图标 / IS_DEV / requestOpenOptions
-│       ├── JobDetailView.tsx
-│       ├── ProbeView.tsx  #   纯展示
-│       └── ChatPlaceholder.tsx
+├── contents/              # ⚠️ Plasmo 把这里所有 .tsx 都注册为 CSUI 入口
+│   └── boss-panel.tsx     #   CS 入口 + 容器壳 + 拖动 + 探针 state（helper 一律走 lib/ui/）
 ├── lib/                   # 所有可复用逻辑（默认新建在这里）
 │   ├── boss/
 │   │   ├── pages.ts       # URL → 页面类型
@@ -50,6 +45,12 @@ boss-jd-copilot/
 │   ├── ai/
 │   │   ├── client.ts
 │   │   └── prompts.ts
+│   ├── ui/
+│   │   └── boss-panel/    # 浮层子组件（非 CS 入口，被 contents/boss-panel/index.tsx 引用）
+│   │       ├── ui.tsx     #   共享样式 / 图标 / IS_DEV / requestOpenOptions
+│   │       ├── JobDetailView.tsx
+│   │       ├── ProbeView.tsx  # 纯展示
+│   │       └── ChatPlaceholder.tsx
 │   ├── messages.ts
 │   └── debug.ts
 ├── assets/                # 图标等静态资源
@@ -63,7 +64,8 @@ boss-jd-copilot/
 | 要写的内容 | 创建位置 | 禁止放在 |
 |------------|----------|----------|
 | Plasmo 扩展入口（manifest 能力） | 根目录 `popup.tsx` / `options.tsx` / `background.ts` / `content.ts` | `lib/`、`build/` |
-| Boss 页面内浮层 UI | `contents/*.tsx` | 根目录堆大组件 |
+| Boss 页面内浮层 CS 入口 | `contents/<name>/index.tsx`（folder 只放 index） | 同目录塞 helper（Plasmo 会把 `contents/<name>/` 下所有 .tsx 都注册成 CSUI 入口，没 default export 的会在非 Boss 页报"Element type is invalid"） |
+| 浮层子组件 / 共享 UI 片段 | `lib/ui/<feature>/` | `contents/<name>/` 子文件 |
 | URL 识别、页面类型 | `lib/boss/pages.ts` | `content.ts` 内联 |
 | 详情页/聊天页 DOM 选择器与抽取 | `lib/boss/dom-job-detail.ts`、`dom-chat.ts` | 其它目录 |
 | 找选择器（Boss 不让开 F12） | `lib/boss/probe.ts` + 浮层探针按钮 | 依赖 Boss 控制台 |

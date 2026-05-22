@@ -13,17 +13,16 @@ import {
   setHover,
   type ProbedInfo
 } from "~lib/boss/probe"
-
-import { ChatPlaceholder } from "./ChatPlaceholder"
-import { JobDetailView } from "./JobDetailView"
-import { ProbeView } from "./ProbeView"
+import { ChatPlaceholder } from "~lib/ui/boss-panel/ChatPlaceholder"
+import { JobDetailView } from "~lib/ui/boss-panel/JobDetailView"
+import { ProbeView } from "~lib/ui/boss-panel/ProbeView"
 import {
   GearIcon,
   HEADER_ICON_BTN,
   IS_DEV,
   requestOpenOptions,
   SearchIcon
-} from "./ui"
+} from "~lib/ui/boss-panel/ui"
 
 export const config: PlasmoCSConfig = {
   matches: [

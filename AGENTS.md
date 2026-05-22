@@ -85,13 +85,8 @@ boss-jd-copilot/
 │   └── GreetingSection.tsx   #   tone 预设 + 可折叠的"自定义系统 prompt"编辑器
 ├── background.ts             # Service Worker：消息、AI、storage 编排
 ├── content.ts                # Content Script 入口：matches、调度 lib
-├── contents/
-│   └── boss-panel/           # 页面内 React 浮层（Plasmo CS UI，已折叠为文件夹）
-│       ├── index.tsx         #   CS 入口：matches、容器壳、拖动、探针 state
-│       ├── ui.tsx            #   共享样式 / 图标 / IS_DEV / 上下文存活检测 / 打开 options
-│       ├── JobDetailView.tsx #   主流程：抽 JD、生成、复制
-│       ├── ProbeView.tsx     #   探针展示（纯展示，全局监听在 index.tsx）
-│       └── ChatPlaceholder.tsx
+├── contents/                 # ⚠️ Plasmo 把这里所有 .tsx 都注册为 CSUI 入口
+│   └── boss-panel.tsx        #   CS 入口：matches、容器壳、拖动、探针 state（helper 一律走 lib/ui/）
 ├── lib/                      # 所有业务逻辑（默认在这里新建）
 │   ├── boss/
 │   │   ├── pages.ts          # URL → job_detail | chat | unknown
@@ -106,6 +101,12 @@ boss-jd-copilot/
 │   │   ├── client.ts         # chatCompletion：通用 OpenAI 兼容 fetch
 │   │   ├── prompts.ts        # 招呼语 prompt：PRESET_PROMPTS + customPrompt 覆盖
 │   │   └── resume-prompt.ts  # 简历 → 个人画像 的分析 prompt
+│   ├── ui/
+│   │   └── boss-panel/       # 浮层子组件（被 contents/boss-panel/index.tsx import）
+│   │       ├── ui.tsx        #   共享样式 / 图标 / IS_DEV / 上下文存活检测 / 打开 options
+│   │       ├── JobDetailView.tsx # 主流程：抽 JD、生成、复制
+│   │       ├── ProbeView.tsx # 探针展示（纯展示，全局监听在 contents/boss-panel/index.tsx）
+│   │       └── ChatPlaceholder.tsx
 │   ├── pdf.ts                # PDF 文本抽取（pdfjs-dist；在 options 页执行）
 │   ├── messages.ts           # chrome.runtime 消息类型
 │   └── debug.ts              # 调试信息上报 background
@@ -121,7 +122,8 @@ boss-jd-copilot/
 | 要写的内容 | 创建位置 | 不要放在 |
 |------------|----------|----------|
 | Plasmo 扩展能力入口 | 根目录单文件（`popup.tsx` / `background.ts` / `content.ts`）或同名文件夹 + `index`（如 `options/index.tsx`） | `lib/`、`build/` |
-| Boss 页内嵌 UI | `contents/*.tsx` | 根目录长篇 React |
+| Boss 页内嵌 CSUI 入口 | `contents/<name>/index.tsx`（folder 只放 index） | 同目录塞 helper —— Plasmo 会把 `contents/<name>/` 下所有 .tsx 都注册成 CSUI 入口，没 default export 的会在非 Boss 页报 "Element type is invalid" |
+| 浮层子组件（非 CS 入口） | `lib/ui/<feature>/` | `contents/<name>/` 子文件 |
 | 页面类型 / URL 判断 | `lib/boss/pages.ts` | `content.ts` 内联一长段 |
 | 职位详情 DOM、JD 抽取 | `lib/boss/dom-job-detail.ts` | popup、background |
 | 聊天页 DOM、填入招呼语 | `lib/boss/dom-chat.ts` | popup、background |
