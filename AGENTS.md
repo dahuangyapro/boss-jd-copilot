@@ -86,7 +86,12 @@ boss-jd-copilot/
 ├── background.ts             # Service Worker：消息、AI、storage 编排
 ├── content.ts                # Content Script 入口：matches、调度 lib
 ├── contents/
-│   └── boss-panel.tsx        # 页面内 React 浮层（Plasmo CS UI）
+│   └── boss-panel/           # 页面内 React 浮层（Plasmo CS UI，已折叠为文件夹）
+│       ├── index.tsx         #   CS 入口：matches、容器壳、拖动、探针 state
+│       ├── ui.tsx            #   共享样式 / 图标 / IS_DEV / 上下文存活检测 / 打开 options
+│       ├── JobDetailView.tsx #   主流程：抽 JD、生成、复制
+│       ├── ProbeView.tsx     #   探针展示（纯展示，全局监听在 index.tsx）
+│       └── ChatPlaceholder.tsx
 ├── lib/                      # 所有业务逻辑（默认在这里新建）
 │   ├── boss/
 │   │   ├── pages.ts          # URL → job_detail | chat | unknown
