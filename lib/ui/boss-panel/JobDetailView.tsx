@@ -6,6 +6,7 @@ import {
   observeJobDetail,
   type ExtractedJob
 } from "~lib/boss/dom-job-detail"
+import { triggerListChatJump } from "~lib/boss/list-startchat"
 import type { JobDetailPageType } from "~lib/boss/pages"
 import { fillStartchatTextarea } from "~lib/boss/startchat-dialog"
 import type {
@@ -127,16 +128,23 @@ export const JobDetailView = ({
   const fillToChat = async () => {
     if (greeting.kind !== "ready") return
     setFill({ kind: "filling" })
-    const result = await fillStartchatTextarea(greeting.text)
-    if (result.ok) {
-      setFill({ kind: "filled" })
-      // 2 秒后回到 idle，让按钮恢复可再次点击的样子
-      setTimeout(() => {
-        setFill((cur) => (cur.kind === "filled" ? { kind: "idle" } : cur))
-      }, 2000)
-    } else {
+    // 详情页：尝试在同页「立即沟通」浮窗里直接填入（首次沟通该 HR 时成功）；
+    // 推荐列表页：没有同页浮窗，只能触发跳转 chat 页，由 ChatView 接管自动填入
+    const result =
+      pageType === "job_recommend"
+        ? await triggerListChatJump()
+        : await fillStartchatTextarea(greeting.text)
+    // strict:false 下三元 union 的 narrow 不工作，用 === false 显式比较（项目通用模式）
+    if (result.ok === false) {
       setFill({ kind: "error", message: result.reason })
+      return
     }
+    setFill({ kind: "filled" })
+    // 列表页跳转后 content script 即将销毁，filled 状态用户基本看不到；
+    // 详情页留在原地，2 秒后回到 idle 让按钮可再次点击
+    setTimeout(() => {
+      setFill((cur) => (cur.kind === "filled" ? { kind: "idle" } : cur))
+    }, 2000)
   }
 
   const copyJd = async () => {
@@ -274,7 +282,11 @@ export const JobDetailView = ({
             <button
               onClick={fillToChat}
               disabled={fill.kind === "filling"}
-              title="点击页面「立即沟通」并把招呼语填入浮窗输入框（不会自动发送，由你自己点发送）"
+              title={
+                pageType === "job_recommend"
+                  ? "跳转到聊天页并自动填入招呼语（不会自动发送）"
+                  : "点击页面「立即沟通」并把招呼语填入浮窗输入框（不会自动发送，由你自己点发送）"
+              }
               style={{
                 ...BTN.primary,
                 flex: 1,
@@ -283,10 +295,14 @@ export const JobDetailView = ({
                   : {})
               }}>
               {fill.kind === "filling"
-                ? "填入中…"
+                ? pageType === "job_recommend"
+                  ? "前往聊天页…"
+                  : "填入中…"
                 : fill.kind === "filled"
                   ? "已填入"
-                  : "填入聊天框"}
+                  : pageType === "job_recommend"
+                    ? "发起聊天"
+                    : "填入聊天框"}
             </button>
             <button onClick={copy} style={{ ...BTN.secondary, flex: 1 }}>
               {copied ? "已复制" : "复制到剪贴板"}

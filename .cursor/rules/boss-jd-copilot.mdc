@@ -39,6 +39,7 @@ boss-jd-copilot/
 │   │   ├── dom-job-detail.ts
 │   │   ├── dom-chat.ts    # 聊天页：读职位/公司、填入 #chat-input（contenteditable div，非 textarea）；URL 不随会话切换变，靠 MutationObserver
 │   │   ├── startchat-dialog.ts  # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea（React 受控）
+│   │   ├── list-startchat.ts  # 列表页「发起聊天」：点击 + 「已发送默认招呼语」中间弹窗自动确认 → 跳 chat 页
 │   │   └── probe.ts       # DOM 探针（绕过 Boss 反调试用）
 │   ├── storage/
 │   │   ├── keys.ts
@@ -70,6 +71,7 @@ boss-jd-copilot/
 | URL 识别、页面类型 | `lib/boss/pages.ts` | `content.ts` 内联 |
 | 详情页/聊天页 DOM 选择器与抽取 | `lib/boss/dom-job-detail.ts`、`dom-chat.ts` | 其它目录 |
 | 详情页内「立即沟通」浮窗的触发与填入 | `lib/boss/startchat-dialog.ts`（不是 dom-chat — 那个是 `/web/geek/chat` 路径用的） | `dom-job-detail.ts`（抽取与写入分离） |
+| 列表页「发起聊天」+「已发送默认招呼语」弹窗 | `lib/boss/list-startchat.ts`（只触发跳转，chat 页 ChatView 接管填入） | `startchat-dialog.ts`（列表页没同页浮窗） |
 | 找选择器（Boss 不让开 F12） | `lib/boss/probe.ts` + 浮层探针按钮 | 依赖 Boss 控制台 |
 | `chrome.storage` key 与读写 | `lib/storage/` | content / popup |
 | 扩展内消息类型 | `lib/messages.ts` | 各文件散落定义 |
