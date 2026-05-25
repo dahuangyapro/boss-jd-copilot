@@ -7,6 +7,7 @@ import {
   type ExtractedJob
 } from "~lib/boss/dom-job-detail"
 import type { JobDetailPageType } from "~lib/boss/pages"
+import { fillStartchatTextarea } from "~lib/boss/startchat-dialog"
 import type {
   GenerateGreetingRequest,
   GenerateGreetingResponse
@@ -26,6 +27,12 @@ type GreetingState =
   | { kind: "ready"; text: string }
   | { kind: "error"; message: string }
 
+type FillState =
+  | { kind: "idle" }
+  | { kind: "filling" }
+  | { kind: "filled" }
+  | { kind: "error"; message: string }
+
 export const JobDetailView = ({
   urlKey,
   pageType
@@ -38,6 +45,7 @@ export const JobDetailView = ({
   const [greeting, setGreeting] = useState<GreetingState>({ kind: "idle" })
   const [copied, setCopied] = useState(false)
   const [jdCopied, setJdCopied] = useState(false)
+  const [fill, setFill] = useState<FillState>({ kind: "idle" })
 
   // URL 变化时重新订阅；推荐页 observer 会持续监听，详情页则首次抽到后即断开
   useEffect(() => {
@@ -46,11 +54,13 @@ export const JobDetailView = ({
     setGreeting({ kind: "idle" })
     setCopied(false)
     setJdCopied(false)
+    setFill({ kind: "idle" })
     const cleanup = observeJobDetail(pageType, (next) => {
       setJob(next)
       setStatus("ready")
       // 切换到新 JD 后旧招呼语作废，避免误以为是新岗位生成的
       setGreeting({ kind: "idle" })
+      setFill({ kind: "idle" })
     })
     return cleanup
   }, [urlKey, pageType])
@@ -111,6 +121,21 @@ export const JobDetailView = ({
     } catch {
       // 剪贴板权限失败兜底：选中文本让用户手动复制
       setCopied(false)
+    }
+  }
+
+  const fillToChat = async () => {
+    if (greeting.kind !== "ready") return
+    setFill({ kind: "filling" })
+    const result = await fillStartchatTextarea(greeting.text)
+    if (result.ok) {
+      setFill({ kind: "filled" })
+      // 2 秒后回到 idle，让按钮恢复可再次点击的样子
+      setTimeout(() => {
+        setFill((cur) => (cur.kind === "filled" ? { kind: "idle" } : cur))
+      }, 2000)
+    } else {
+      setFill({ kind: "error", message: result.reason })
     }
   }
 
@@ -246,10 +271,42 @@ export const JobDetailView = ({
             {greeting.text}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button onClick={copy} style={{ ...BTN.primary, flex: 1 }}>
+            <button
+              onClick={fillToChat}
+              disabled={fill.kind === "filling"}
+              title="点击页面「立即沟通」并把招呼语填入浮窗输入框（不会自动发送，由你自己点发送）"
+              style={{
+                ...BTN.primary,
+                flex: 1,
+                ...(fill.kind === "filling"
+                  ? { background: "#7dd3fc", cursor: "wait" }
+                  : {})
+              }}>
+              {fill.kind === "filling"
+                ? "填入中…"
+                : fill.kind === "filled"
+                  ? "已填入"
+                  : "填入聊天框"}
+            </button>
+            <button onClick={copy} style={{ ...BTN.secondary, flex: 1 }}>
               {copied ? "已复制" : "复制到剪贴板"}
             </button>
           </div>
+          {fill.kind === "error" && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 8,
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                color: "#b91c1c",
+                fontSize: 12.5,
+                lineHeight: 1.5
+              }}>
+              {fill.message}
+            </div>
+          )}
         </div>
       )}
     </>

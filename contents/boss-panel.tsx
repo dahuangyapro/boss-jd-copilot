@@ -27,8 +27,8 @@ import {
 export const config: PlasmoCSConfig = {
   matches: [
     "https://www.zhipin.com/job_detail*",
-    "https://www.zhipin.com/web/geek/jobs*"
-    // "https://www.zhipin.com/web/geek/chat*"
+    "https://www.zhipin.com/web/geek/jobs*",
+    "https://www.zhipin.com/web/geek/chat*"
   ]
 }
 

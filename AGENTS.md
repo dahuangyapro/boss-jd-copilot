@@ -91,7 +91,8 @@ boss-jd-copilot/
 │   ├── boss/
 │   │   ├── pages.ts          # URL → job_detail | chat | unknown
 │   │   ├── dom-job-detail.ts # 详情页 DOM 抽取
-│   │   ├── dom-chat.ts       # 聊天页 DOM 读取 + 填入输入框
+│   │   ├── dom-chat.ts       # 聊天页（/web/geek/chat）DOM 读取 + 填入输入框
+│   │   ├── startchat-dialog.ts # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea（不发送）
 │   │   └── probe.ts          # DOM 探针（绕过 Boss 反调试，浮层里实时拾取选择器）
 │   ├── storage/
 │   │   ├── keys.ts           # storage key 常量
@@ -126,7 +127,8 @@ boss-jd-copilot/
 | 浮层子组件（非 CS 入口） | `lib/ui/<feature>/` | `contents/<name>/` 子文件 |
 | 页面类型 / URL 判断 | `lib/boss/pages.ts` | `content.ts` 内联一长段 |
 | 职位详情 DOM、JD 抽取 | `lib/boss/dom-job-detail.ts` | popup、background |
-| 聊天页 DOM、填入招呼语 | `lib/boss/dom-chat.ts` | popup、background |
+| 聊天页（`/web/geek/chat`）DOM、填入招呼语 | `lib/boss/dom-chat.ts` | popup、background |
+| 详情页内嵌「立即沟通」浮窗的触发与 textarea 填入 | `lib/boss/startchat-dialog.ts` | `dom-job-detail.ts`（抽取与写入分离）；`dom-chat.ts`（那是另一个路径） |
 | 调试 / 找选择器（Boss 不让开 F12） | `lib/boss/probe.ts` + 浮层探针按钮 | 依赖 Boss 控制台 |
 | `chrome.storage.local` | `lib/storage/` | content 内硬编码 key |
 | 扩展内消息协议 | `lib/messages.ts` | 多处重复 type |
