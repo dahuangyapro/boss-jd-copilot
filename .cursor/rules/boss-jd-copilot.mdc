@@ -37,8 +37,8 @@ boss-jd-copilot/
 │   ├── boss/
 │   │   ├── pages.ts       # URL → 页面类型
 │   │   ├── dom-job-detail.ts
-│   │   ├── dom-chat.ts
-│   │   ├── startchat-dialog.ts  # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea
+│   │   ├── dom-chat.ts    # 聊天页：读职位/公司、填入 #chat-input（contenteditable div，非 textarea）；URL 不随会话切换变，靠 MutationObserver
+│   │   ├── startchat-dialog.ts  # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea（React 受控）
 │   │   └── probe.ts       # DOM 探针（绕过 Boss 反调试用）
 │   ├── storage/
 │   │   ├── keys.ts

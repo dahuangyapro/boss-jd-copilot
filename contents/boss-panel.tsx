@@ -13,7 +13,7 @@ import {
   setHover,
   type ProbedInfo
 } from "~lib/boss/probe"
-import { ChatPlaceholder } from "~lib/ui/boss-panel/ChatPlaceholder"
+import { ChatView } from "~lib/ui/boss-panel/ChatView"
 import { JobDetailView } from "~lib/ui/boss-panel/JobDetailView"
 import { ProbeView } from "~lib/ui/boss-panel/ProbeView"
 import {
@@ -263,7 +263,7 @@ const BossPanel = () => {
               {isJobDetailLike(pageType) && (
                 <JobDetailView urlKey={currentUrl} pageType={pageType} />
               )}
-              {pageType === "chat" && <ChatPlaceholder />}
+              {pageType === "chat" && <ChatView />}
             </>
           )}
         </div>

@@ -91,8 +91,8 @@ boss-jd-copilot/
 │   ├── boss/
 │   │   ├── pages.ts          # URL → job_detail | chat | unknown
 │   │   ├── dom-job-detail.ts # 详情页 DOM 抽取
-│   │   ├── dom-chat.ts       # 聊天页（/web/geek/chat）DOM 读取 + 填入输入框
-│   │   ├── startchat-dialog.ts # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea（不发送）
+│   │   ├── dom-chat.ts       # 聊天页（/web/geek/chat）：读职位/公司、填入 #chat-input（contenteditable div，非 textarea）；切换会话不改 URL，靠 MutationObserver
+│   │   ├── startchat-dialog.ts # 详情页内嵌「立即沟通」浮窗：触发 + 填入 textarea（React 受控；不发送）
 │   │   └── probe.ts          # DOM 探针（绕过 Boss 反调试，浮层里实时拾取选择器）
 │   ├── storage/
 │   │   ├── keys.ts           # storage key 常量
