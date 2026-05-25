@@ -6,6 +6,7 @@ import {
   hasSelfSentMessage,
   isChatInputEmpty,
   observeChatPosition,
+  waitForChatHistoryReady,
   type ChatPosition
 } from "~lib/boss/dom-chat"
 import {
@@ -55,10 +56,16 @@ export const ChatView = () => {
       lastTitleRef.current = pos.title
 
       const matched = await findJobCacheByTitle(pos.title)
+      if (cancelled) return
       if (!matched || !matched.greeting) {
         setState({ kind: "no-match", position: pos })
         return
       }
+
+      // chat 页打开时职位名先渲染、消息列表后渲染；不等的话 hasSelfSentMessage()
+      // 会把"已聊过的会话"误判成新会话并自动覆盖
+      await waitForChatHistoryReady()
+      if (cancelled) return
 
       const shouldAutoFill = isChatInputEmpty() && !hasSelfSentMessage()
       let autoFilled = false

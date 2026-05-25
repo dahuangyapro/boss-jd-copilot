@@ -12,10 +12,11 @@
 const CHAT_INPUT = "#chat-input"
 const POSITION_NAME =
   "div.chat-position-content div.position-main div.position-content div.left-content span.position-name"
+// .base-info 下排列着 [HR 名, 公司名, HR 职位] 三个 span，取第 2 个才是公司
 const COMPANY_NAME =
-  "div.top-info-content div.user-info-wrap div.user-info div.base-info span"
+  "div.top-info-content div.user-info-wrap div.user-info div.base-info > span:nth-of-type(2)"
 const MESSAGE_LIST = "div.chat-conversation ul.im-list"
-const SELF_MESSAGE_ITEM = `${MESSAGE_LIST} > li.item-myself`
+const SELF_MESSAGE_ITEM = `${MESSAGE_LIST} > li.message-item.item-myself`
 
 export type ChatPosition = {
   title: string
@@ -117,6 +118,38 @@ export const isChatInputEmpty = (): boolean => {
  */
 export const hasSelfSentMessage = (): boolean =>
   !!document.querySelector(SELF_MESSAGE_ITEM)
+
+/**
+ * 等聊天历史 DOM 稳定。chat 页打开时**顶部职位名先渲染，消息列表后渲染**，
+ * 若在消息列表渲染前判定 `hasSelfSentMessage()` 会把"已聊过的会话"误判成
+ * 新会话，导致自动填入覆盖。这里等 `ul.im-list` 存在 + 200ms 内无新 mutation
+ * 才视为 stable（不要求列表非空——真的新会话是空 `ul`）。
+ */
+export const waitForChatHistoryReady = (
+  timeoutMs = 1500
+): Promise<void> =>
+  new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      observer.disconnect()
+      window.clearTimeout(debounceTimer)
+      window.clearTimeout(deadline)
+      resolve()
+    }
+    const checkAndFinish = () => {
+      if (document.querySelector(MESSAGE_LIST)) finish()
+    }
+    let debounceTimer = window.setTimeout(checkAndFinish, 200)
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(checkAndFinish, 200)
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    // 兜底：1.5s 都没稳定（极慢加载或 selector 失效）也放行，由上层 hasSelfSentMessage 现读现判
+    const deadline = window.setTimeout(finish, timeoutMs)
+  })
 
 export const runOnChatPage = () => {
   // 当前由 lib/ui/boss-panel/ChatPlaceholder.tsx 在浮层挂载时调用 observeChatPosition
