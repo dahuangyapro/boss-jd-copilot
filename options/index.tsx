@@ -11,16 +11,41 @@ import {
 import { GreetingSection } from "./GreetingSection"
 import { ProfileSection } from "./ProfileSection"
 import { ProviderSection } from "./ProviderSection"
-import { S, type Patcher } from "./ui"
+import { S, SaveCard, type Patcher } from "./ui"
+
+/**
+ * 字段按"卡片"归属：
+ *  - Provider 卡：baseURL / apiKey / model
+ *  - Content 卡：userProfile / tone / customPrompt
+ * 每张卡独立保存按钮；保存时**只覆盖**自己关心的字段，从 storage 拉其他字段原值
+ * 拼回去——这样在两张卡都改了但只按其中一张保存按钮的场景下，未保存那张的字段
+ * 不会被误写入。
+ */
+const PROVIDER_FIELDS = ["baseURL", "apiKey", "model"] as const
+const CONTENT_FIELDS = ["userProfile", "tone", "customPrompt"] as const
+
+type ProviderField = (typeof PROVIDER_FIELDS)[number]
+type ContentField = (typeof CONTENT_FIELDS)[number]
+
+const isDirty = (
+  a: AiSettings,
+  b: AiSettings,
+  fields: readonly (ProviderField | ContentField)[]
+): boolean => fields.some((f) => a[f] !== b[f])
 
 const OptionsPage = () => {
+  const [stored, setStored] = useState<AiSettings>(DEFAULT_AI_SETTINGS)
   const [settings, setSettings] = useState<AiSettings>(DEFAULT_AI_SETTINGS)
   const [loaded, setLoaded] = useState(false)
-  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [providerSavedAt, setProviderSavedAt] = useState<number | null>(null)
+  const [contentSavedAt, setContentSavedAt] = useState<number | null>(null)
   const [permWarning, setPermWarning] = useState<string | null>(null)
+  const [providerBusy, setProviderBusy] = useState(false)
+  const [contentBusy, setContentBusy] = useState(false)
 
   useEffect(() => {
     getAiSettings().then((s) => {
+      setStored(s)
       setSettings(s)
       setLoaded(true)
     })
@@ -28,24 +53,56 @@ const OptionsPage = () => {
 
   const patch: Patcher = useCallback((delta) => {
     setSettings((prev) => ({ ...prev, ...delta }))
-    setSavedAt(null)
     setPermWarning(null)
   }, [])
 
+  const providerDirty = isDirty(settings, stored, PROVIDER_FIELDS)
+  const contentDirty = isDirty(settings, stored, CONTENT_FIELDS)
+
   /**
-   * 商城合规：常驻 host_permissions 只覆盖 zhipin，AI baseURL 走 optional。
-   * 保存按钮的点击是 user gesture——必须把 permission.request 放在 await 链最前，
-   * 否则 Chrome 判定"非手势触发"会直接拒绝弹窗。
+   * Provider 卡保存：先 user-gesture 触发 permission.request（Chrome 拒绝非手势调用），
+   * 再读 storage 把 Content 字段保留下来、只覆盖 Provider 字段。
    */
-  const onSave = async () => {
-    const granted = await requestBaseUrlPermission(settings.baseURL)
-    await saveAiSettings(settings)
-    setSavedAt(Date.now())
-    setPermWarning(
-      granted
-        ? null
-        : "未授权访问该 baseURL 的域名，AI 调用会失败。再点一次「保存」重新授权，或换一个域名。"
-    )
+  const onSaveProvider = async () => {
+    setProviderBusy(true)
+    try {
+      const granted = await requestBaseUrlPermission(settings.baseURL)
+      const latest = await getAiSettings()
+      const next: AiSettings = {
+        ...latest,
+        baseURL: settings.baseURL,
+        apiKey: settings.apiKey,
+        model: settings.model
+      }
+      await saveAiSettings(next)
+      setStored(next)
+      setProviderSavedAt(Date.now())
+      setPermWarning(
+        granted
+          ? null
+          : "未授权访问该 baseURL 的域名，AI 调用会失败。再点一次「保存」重新授权，或换一个域名。"
+      )
+    } finally {
+      setProviderBusy(false)
+    }
+  }
+
+  const onSaveContent = async () => {
+    setContentBusy(true)
+    try {
+      const latest = await getAiSettings()
+      const next: AiSettings = {
+        ...latest,
+        userProfile: settings.userProfile,
+        tone: settings.tone,
+        customPrompt: settings.customPrompt
+      }
+      await saveAiSettings(next)
+      setStored(next)
+      setContentSavedAt(Date.now())
+    } finally {
+      setContentBusy(false)
+    }
   }
 
   if (!loaded) {
@@ -61,35 +118,23 @@ const OptionsPage = () => {
           职位详情/推荐页生成个性化招呼语。
         </p>
 
-        <ProviderSection settings={settings} patch={patch} />
-        <ProfileSection settings={settings} patch={patch} />
-        <GreetingSection settings={settings} patch={patch} />
+        <SaveCard
+          onSave={onSaveProvider}
+          dirty={providerDirty}
+          savedAt={providerSavedAt}
+          warning={permWarning}
+          busy={providerBusy}>
+          <ProviderSection settings={settings} patch={patch} />
+        </SaveCard>
 
-        <div style={S.footer}>
-          <button style={S.saveBtn} onClick={onSave}>
-            保存
-          </button>
-          {savedAt && (
-            <span style={S.savedHint}>
-              已保存 · {new Date(savedAt).toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-        {permWarning && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: "8px 12px",
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              borderRadius: 8,
-              color: "#b91c1c",
-              fontSize: 12.5,
-              lineHeight: 1.5
-            }}>
-            {permWarning}
-          </div>
-        )}
+        <SaveCard
+          onSave={onSaveContent}
+          dirty={contentDirty}
+          savedAt={contentSavedAt}
+          busy={contentBusy}>
+          <ProfileSection settings={settings} patch={patch} />
+          <GreetingSection settings={settings} patch={patch} />
+        </SaveCard>
       </div>
     </div>
   )

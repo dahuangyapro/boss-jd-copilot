@@ -1,9 +1,6 @@
 import { useState } from "react"
 
-import {
-  PROVIDER_PRESETS,
-  type AiSettings
-} from "~lib/storage/options"
+import { PROVIDER_PRESETS, type AiSettings } from "~lib/storage/options"
 
 import { Field, S, Section, type Patcher } from "./ui"
 
@@ -43,9 +40,7 @@ export const ProviderSection = ({
         </select>
       </Field>
 
-      <Field
-        label="baseURL"
-        hint="结尾通常是 /v1，client 会自动拼 /chat/completions">
+      <Field label="baseURL" hint="结尾通常是 /v1，会自动拼 /chat/completions">
         <input
           style={S.input}
           value={settings.baseURL}
@@ -82,7 +77,6 @@ export const ProviderSection = ({
           onChange={(e) => patch({ model: e.target.value })}
         />
       </Field>
-
     </Section>
   )
 }

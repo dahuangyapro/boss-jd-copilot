@@ -18,6 +18,49 @@ export const Section = ({
   </section>
 )
 
+/**
+ * 可独立保存的卡片：包一组 Section，底部带保存按钮 + 已保存提示 + 可选 perm warning。
+ * dirty=true 时按钮变橙提示有未保存修改，按下保存后由父组件 reset 父级 stored snapshot
+ * 让 dirty 重新算回 false。
+ */
+export const SaveCard = ({
+  children,
+  onSave,
+  dirty,
+  savedAt,
+  warning,
+  busy
+}: {
+  children: ReactNode
+  onSave: () => void
+  dirty: boolean
+  savedAt: number | null
+  warning?: string | null
+  busy?: boolean
+}) => (
+  <div style={S.card}>
+    {children}
+    <div style={S.cardFooter}>
+      <button
+        type="button"
+        style={dirty ? S.saveBtnDirty : S.saveBtn}
+        onClick={onSave}
+        disabled={busy}>
+        {dirty ? "保存修改" : "保存"}
+      </button>
+      {!dirty && savedAt && (
+        <span style={S.savedHint}>
+          已保存 · {new Date(savedAt).toLocaleTimeString()}
+        </span>
+      )}
+      {dirty && (
+        <span style={S.dirtyHint}>有未保存的修改</span>
+      )}
+    </div>
+    {warning && <div style={S.warningBox}>{warning}</div>}
+  </div>
+)
+
 export const Field = ({
   label,
   hint,
@@ -114,7 +157,43 @@ export const S: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: "pointer"
   },
+  saveBtnDirty: {
+    padding: "9px 24px",
+    background: "#f59e0b",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   savedHint: { fontSize: 12, color: "#10b981" },
+  dirtyHint: { fontSize: 12, color: "#b45309" },
+  card: {
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 8,
+    padding: "16px 18px",
+    marginBottom: 16
+  },
+  cardFooter: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTop: "1px dashed #e2e8f0"
+  },
+  warningBox: {
+    marginTop: 10,
+    padding: "8px 12px",
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: 8,
+    color: "#b91c1c",
+    fontSize: 12.5,
+    lineHeight: 1.5
+  },
   loading: { padding: 32, textAlign: "center", color: "#64748b" },
   linkBtn: {
     display: "inline-flex",
