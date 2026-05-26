@@ -18,7 +18,7 @@ export type AiSettings = {
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   baseURL: "https://api.deepseek.com/v1",
   apiKey: "",
-  model: "deepseek-chat",
+  model: "deepseek-v4-flash",
   userProfile: "",
   tone: "concise",
   customPrompt: ""
@@ -32,7 +32,8 @@ export const PROVIDER_PRESETS = [
   {
     name: "DeepSeek",
     baseURL: "https://api.deepseek.com/v1",
-    model: "deepseek-chat"
+    // deepseek-chat / deepseek-reasoner 已宣布于 2026-07-24 弃用，新用户直接用 V4
+    model: "deepseek-v4-flash"
   },
   {
     name: "Kimi (Moonshot)",

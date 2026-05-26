@@ -61,7 +61,11 @@ export const chatCompletion = async (
         ],
         temperature: opts.temperature ?? 0.7,
         max_tokens: opts.maxTokens ?? 400,
-        stream: false
+        stream: false,
+        // DeepSeek V4 系列默认 thinking=enabled，会让模型把 max_tokens 全用在
+        // reasoning 上、content 为空。本扩展是结构化输出场景（招呼语、简历画像），
+        // 用户看不到思考过程，统一关掉更稳。其他厂商兼容 API 通常忽略未知字段，不影响。
+        thinking: { type: "disabled" }
       })
     })
   } catch (e) {
@@ -97,21 +101,40 @@ export const chatCompletion = async (
     return { ok: false, error: "响应解析失败（非 JSON）" }
   }
 
-  const text = extractContent(data)
-  if (!text) {
-    return { ok: false, error: "模型未返回有效内容" }
+  const extracted = extractContent(data)
+  if (extracted.kind === "text") return { ok: true, text: extracted.value }
+  if (extracted.kind === "reasoning-only") {
+    return {
+      ok: false,
+      error:
+        "模型把 token 全用在内部推理上、content 为空。本扩展已默认禁用 thinking 模式，若仍触发说明你用的厂商不支持禁用 reasoning——请在选项页换成非 reasoning 模型（如 deepseek-v4-flash、gpt-4o-mini、qwen-turbo 等）。"
+    }
   }
-
-  return { ok: true, text }
+  return { ok: false, error: "模型未返回有效内容" }
 }
 
-const extractContent = (data: unknown): string | null => {
-  if (!data || typeof data !== "object") return null
+type ExtractResult =
+  | { kind: "text"; value: string }
+  | { kind: "reasoning-only" }
+  | { kind: "empty" }
+
+/**
+ * Reasoning 模型（DeepSeek V4 thinking 模式、OpenAI o1 等）的响应里 `content` 可能为空，
+ * 而推理内容在 `reasoning_content` 字段。区分"真没返回"和"全在推理"才能给用户有用的错误。
+ */
+const extractContent = (data: unknown): ExtractResult => {
+  if (!data || typeof data !== "object") return { kind: "empty" }
   const choices = (data as { choices?: unknown }).choices
-  if (!Array.isArray(choices) || choices.length === 0) return null
+  if (!Array.isArray(choices) || choices.length === 0) return { kind: "empty" }
   const message = (choices[0] as { message?: unknown }).message
-  if (!message || typeof message !== "object") return null
+  if (!message || typeof message !== "object") return { kind: "empty" }
   const content = (message as { content?: unknown }).content
-  if (typeof content !== "string") return null
-  return content.trim() || null
+  if (typeof content === "string" && content.trim()) {
+    return { kind: "text", value: content.trim() }
+  }
+  const reasoning = (message as { reasoning_content?: unknown }).reasoning_content
+  if (typeof reasoning === "string" && reasoning.trim()) {
+    return { kind: "reasoning-only" }
+  }
+  return { kind: "empty" }
 }

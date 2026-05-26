@@ -78,10 +78,11 @@ export const ProviderSection = ({
         <input
           style={S.input}
           value={settings.model}
-          placeholder="deepseek-chat"
+          placeholder="deepseek-v4-flash"
           onChange={(e) => patch({ model: e.target.value })}
         />
       </Field>
+
     </Section>
   )
 }
