@@ -1,115 +1,23 @@
-import type { ExtractedJob } from "~lib/boss/dom-job-detail"
-import type { AiSettings, GreetingTone } from "~lib/storage/options"
+import type { JdAnalysis } from "~lib/messages"
+import type { AiSettings } from "~lib/storage/options"
+import {
+  formatProfileForPrompt,
+  isPersonalProfileEmpty
+} from "~lib/storage/profile"
 
-/**
- * 招呼语 system prompt 的结构是 [共享骨架] + [tone 风格段] 的拼接。
- */
-const SHARED_RULES = `你是经验丰富的求职顾问，正在帮一名求职者向 Boss 直聘上的 HR 发送第一条招呼语。
-你的产出会被直接复制粘贴到聊天框，必须可用，不能带任何元话语。
+// Plasmo/Parcel：以纯文本打包 lib/prompts/get-greetings.md
+import GREETING_SYSTEM from "data-text:~lib/prompts/get-greetings.md"
 
-# 心态校准
-Boss 招呼语的本质是"开启一次轻量沟通"，不是"总结简历"。HR 一天看上百条消息，能让 ta 想回的是"这人像个真实候选人"——读过 JD、有一两点真实承接、想轻量聊一下。
-**当"覆盖 JD 关键词"和"语言自然流畅"冲突时，优先保证自然**——宁可少提一个关键词，也不要让句子读起来像 AI 在硬塞关键词。
-具体口气、句式工整度、字数由下方"# 风格"段决定——不同 tone 差异显著，**严格按风格段执行**，不要跨 tone 借取（如 formal 不引入口语化、casual 不强求工整）。
+const USER = (profile: AiSettings["personalProfile"], jdAnalysis: JdAnalysis) =>
+  `## JD Analysis
+${JSON.stringify(jdAnalysis, null, 2)}
 
-# 内部思考步骤（不输出，仅指导后面的撰写）
-1. 从 JD 中标出 3-5 项核心硬要求（框架 / 语言 / 工具 / 流程，例：Vue、Next.js、SSR、Webpack/Vite、TypeScript）。
-2. 从 JD 中标出 1-2 项核心业务或职责（例：通用组件 / 工具库沉淀、性能优化、跨端适配、服务端联调、SSR 渲染等）。
-3. 对照「我的画像」——画像通常有【技术栈】【代表项目】等结构化段落。
-   - 【技术栈】里命中 JD 硬要求的 → **必引用**（哪怕只是"熟悉" vs JD 要求"精通"，也要写）
-   - 【代表项目】里命中 JD 业务 / 职责的 → 1-2 句承接，体现"我做过你要的事"
-   - 画像里**未命中 JD** 的亮点项目（哪怕带数字、看起来很 wow）→ **不要写进去**
-4. JD 要求了但画像里没有的：**绝不编造**、不要写"擅长 X / 精通 X / 通过 Y 优化"等具体细节。可以省略不提，或诚实表达"对 X 也在学习"。
-
-# 推荐结构（骨架参考，不要硬套也不要全凑齐）
-1. 简短开场
-2. JD 匹配点（用 JD 原词；具体数量由下方"# 风格"段决定）
-3. 一句真实经历承接（可选——画像里有对应项目就写，没有就跳过）
-4. 自然结束语（表达沟通意愿；具体措辞由下方"# 风格"段决定，不同 tone 措辞与口气不同）
-
-# 输出硬规则
-- **必须覆盖至少 2 项 JD 的硬要求或核心职责**，不能跳过最显眼的项去追求"差异化"
-- 引用 JD 时**使用 JD 的原词或近义词**（例：JD 写 "Next.js"，招呼语就写 "Next.js"，不要换成 "服务端渲染框架"），让 HR 一眼对得上
-- 招呼语正文直接输出：**不要前缀**（如"以下是…""您好我是…的招呼语"）、不要引号、不要 emoji、不要"我是 AI"
-- **画像中不存在的技术细节禁止出现在招呼语里**（例：画像没写"分包 / 虚拟列表"，招呼语就不要瞎说"通过分包优化"）
-- **不要**在"我做过 XX""我熟悉 YY"这种简历式陈述上突然结束——HR 会觉得你只是发了段简历摘要，缺乏想沟通的动机。具体结尾措辞由下方"# 风格"段决定。
-- **结尾的沟通邀请必须由前文 JD 匹配点或真实经历自然引出，不要独立悬空**——以"为什么想聊"为锚点（技术方向接近 / 最近在做类似事情 / 对岗位里某部分感兴趣 / 经验贴近）。
-  - 自然承接（好）："这块和我现在做的方向挺接近，想进一步聊聊"／"刚好最近也在做类似事情，想了解下岗位"
-  - 悬空尾巴（**禁止**）："...我做过 A、做过 B、做过 C。希望进一步沟通。"
-- 整体**避免销售感、祈求感、过度热情**（如"非常希望""恳请惠赐机会"），结尾的"沟通邀请"也要保持克制。
-
-# 必须避免
-- 把画像里跟 JD 无关的亮点项目硬塞进去——HR 会觉得求职者没读懂岗位
-- 罗列简历式条目（"我会 A、做过 B、了解 C"）
-- 群发感空话（"贵司发展前景广阔""非常向往加入"）
-- 自称"完美匹配""高度契合"等绝对化措辞
-`
-
-/**
- * 各 tone 仅在字数与口吻上有差别，其余结构 / 约束完全共用 SHARED_RULES。
- * 调整字数或口吻只改这里，不要复制 SHARED_RULES。
- */
-const TONE_STYLES: Record<GreetingTone, string> = {
-  concise: `
-# 风格
-简洁有力，60-100 字。开门见山，不寒暄。**只取 1-2 个最关键的 JD 匹配点**，宁可放弃也不要硬塞更多。
-句式简短紧凑，仍保持完整、克制；不刻意口语化或加语气词。
-结尾用一句"由匹配点自然引出"的话收尾（如"这块和我目前做的方向比较接近，想进一步聊聊"），**不要**写成独立悬空的"希望进一步沟通"。`,
-
-  detailed: `
-# 风格
-充分具体，120-180 字。**对 2-3 个 JD 命中点逐一展开**，每点配一句画像中真实匹配的经验——这是 detailed 区别于其他风格的核心点，必须比 concise/casual/formal 信息密度更高、覆盖更全。
-**句式相对完整、表达稳重清晰**，避免短句堆叠、省略主语或口语化语气词——HR 期望从详尽版本里看到结构而非闲聊感。
-结尾自然表达对岗位方向的兴趣，并由前文承接出沟通意愿（如"和岗位提到的 X / Y 方向都比较吻合，希望有机会进一步交流"），不要悬空收尾。`,
-
-  casual: `
-# 风格
-自然口语，60-120 字。**优先突出 1-2 个最关键的 JD 匹配点**，不强求覆盖更多。像同行之间第一次打招呼，避免书面化措辞（不要"贵司""恳请"等）。整体像真实候选人在 Boss 上主动沟通，而不是 AI 写的自我介绍。
-**允许短句、省略主语、轻微语气词或符号**（如"啦""～"），目的就是脱掉书面感。
-结尾自然带一句由匹配点引出的沟通邀请（如"刚好最近也在做类似事情，想聊聊这个岗位～"），**不要**硬接"希望进一步沟通"。`,
-
-  formal: `
-# 风格
-正式礼貌，80-140 字。**优先突出 1-2 个核心匹配点**，不强求覆盖更多。措辞专业克制，避免口语化和过度热情。
-**句式完整工整**，不使用省略式表达、不带语气词或表情符号——formal 用于偏严肃的岗位（如金融、咨询、管理岗）。
-结尾正式表达希望进一步沟通或了解岗位的意愿，**由前文匹配点自然过渡**（如"上述方向与岗位需求较为契合，希望能有机会进一步沟通"），不要把"希望进一步沟通"作为独立悬空尾句。`
-}
-
-export const PRESET_PROMPTS: Record<GreetingTone, string> = {
-  concise: SHARED_RULES + TONE_STYLES.concise,
-  detailed: SHARED_RULES + TONE_STYLES.detailed,
-  casual: SHARED_RULES + TONE_STYLES.casual,
-  formal: SHARED_RULES + TONE_STYLES.formal
-}
-
-/**
- * 用户自定义 system prompt 时**整段顶替** PRESET_PROMPTS，会连带把"不要前缀/引号/markdown"
- * 这类输出形态硬约束也冲掉，结果模型容易吐"好的，以下是为您生成的招呼语：..."这种 wrapper、
- * 给正文加引号、写 markdown 标题等元话语。在用户的 prompt 末尾追加这一段 baseline，
- * 强调"与上文冲突时以本段为准"，保证产出能原样塞进 Boss 聊天框。
- *
- * 预设路径不需要 —— PRESET_PROMPTS 的 SHARED_RULES 已经包含等价约束。
- */
-const OUTPUT_GUARD = `# 输出形态约束（**不可违背**，与上文冲突时以本段为准）
-产出会被原样复制到 Boss 聊天框，**直接输出招呼语正文本身**，不要包含任何元话语：
-- 禁止任何形式的开场前缀（如"以下是…""好的，下面是…""您好我是…的招呼语"等）
-- 禁止用引号、书名号、markdown 标题/代码块/项目符号包裹正文
-- 禁止 emoji 或表情符号（"～"等语气符号在风格允许时可用）
-- 禁止自称"我是 AI / 助手 / 语言模型"或暴露任何模型推理过程
-多输出一个非招呼语正文的字符都算干扰。`
-
-const USER = (job: ExtractedJob, profile: string) =>
-  `【目标岗位】${job.title}
-【公司】${job.company || "未知"}
-【HR】${job.hrName || "未知"}${job.hrTitle ? ` · ${job.hrTitle}` : ""}
-
-【JD 原文】
-${job.jdText}
-
-【我的画像】
-${profile.trim() || "（求职者未填写自我介绍，请仅依据 JD 生成一段克制、不夸大的招呼语）"}
-
-请按上方"内部思考步骤"先在内部完成 JD ↔ 画像的匹配分析（不输出过程），再生成招呼语正文。`
+## Candidate Profile
+${
+  isPersonalProfileEmpty(profile)
+    ? "（求职者未填写个人画像，请仅依据 JD 分析生成一段克制、不夸大的招呼语）"
+    : formatProfileForPrompt(profile)
+}`
 
 export type ChatMessages = {
   system: string
@@ -117,15 +25,9 @@ export type ChatMessages = {
 }
 
 export const buildGreetingMessages = (
-  job: ExtractedJob,
-  settings: AiSettings
-): ChatMessages => {
-  const custom = settings.customPrompt.trim()
-  return {
-    // customPrompt 非空 → 整段顶替预设，但**末尾追加 OUTPUT_GUARD**——否则用户的 prompt
-    // 会把"不要前缀/引号/emoji/markdown"这类输出形态硬约束冲掉，模型容易吐"好的，以下是…"
-    // 之类的元话语 wrapper。预设路径里 SHARED_RULES 已经包含等价约束，不重复追加。
-    system: custom ? `${custom}\n\n${OUTPUT_GUARD}` : PRESET_PROMPTS[settings.tone],
-    user: USER(job, settings.userProfile)
-  }
-}
+  settings: AiSettings,
+  jdAnalysis: JdAnalysis
+): ChatMessages => ({
+  system: GREETING_SYSTEM,
+  user: USER(settings.personalProfile, jdAnalysis)
+})

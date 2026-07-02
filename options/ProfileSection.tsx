@@ -3,6 +3,15 @@ import { useRef, useState } from "react"
 import type { AnalyzeResumeRequest, AnalyzeResumeResponse } from "~lib/messages"
 import { extractPdfText, PdfExtractError } from "~lib/pdf"
 import type { AiSettings } from "~lib/storage/options"
+import {
+  arrayToLines,
+  formatJobPreferencesText,
+  formatWorkBackgroundText,
+  linesToArray,
+  parseJobPreferencesText,
+  parseWorkBackgroundText,
+  type PersonalProfile
+} from "~lib/storage/profile"
 
 import { Field, S, Section, type Patcher } from "./ui"
 
@@ -12,8 +21,7 @@ type UploadStage =
   | { kind: "analyzing"; fileName: string }
   | { kind: "error"; message: string }
 
-const PROFILE_PLACEHOLDER =
-  "示例：3 年 Go 后端，主做支付/订单方向，熟悉 Kafka 与 ES；\n上家在 xx 公司，独立设计过日交易峰值 50w+ 的清结算模块；\n求职方向：电商/金融科技后端，希望接触高并发与分布式事务"
+const textareaStyle = { ...S.input, ...S.textarea, marginTop: 0 }
 
 export const ProfileSection = ({
   settings,
@@ -25,6 +33,11 @@ export const ProfileSection = ({
   const [stage, setStage] = useState<UploadStage>({ kind: "idle" })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const busy = stage.kind === "extracting" || stage.kind === "analyzing"
+  const profile = settings.personalProfile
+
+  const patchProfile = (next: PersonalProfile) => {
+    patch({ personalProfile: next })
+  }
 
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -53,7 +66,6 @@ export const ProfileSection = ({
       return
     }
 
-    // 1. 提取 PDF 文本（本地，不出本机）
     setStage({ kind: "extracting", fileName: file.name })
     let resumeText: string
     try {
@@ -69,7 +81,6 @@ export const ProfileSection = ({
       return
     }
 
-    // 2. 送 background → AI
     setStage({ kind: "analyzing", fileName: file.name })
     const req: AnalyzeResumeRequest = {
       type: "ANALYZE_RESUME",
@@ -87,8 +98,7 @@ export const ProfileSection = ({
         return
       }
       if (resp.ok === true) {
-        // 直接覆盖现有自我介绍 —— 用户明确希望"上传即生效"的体验
-        patch({ userProfile: resp.profile })
+        patchProfile(resp.profile)
         setStage({ kind: "idle" })
       } else {
         setStage({ kind: "error", message: resp.error })
@@ -99,7 +109,6 @@ export const ProfileSection = ({
         message: err instanceof Error ? err.message : String(err)
       })
     } finally {
-      // 清掉 input.value，让用户能再次选同一个文件
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
@@ -107,15 +116,9 @@ export const ProfileSection = ({
   return (
     <Section title="个人画像">
       <Field
-        label="自我介绍"
-        hint="3-5 行：经验年限、技术栈或方向、亮点项目。越具体，招呼语越像你本人写的。也可以上传 PDF 简历由 AI 自动生成，会覆盖当前文本。">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 8
-          }}>
+        label="上传简历"
+        hint="上传 PDF 后由 AI 自动提取并填入下方各字段，会覆盖当前内容。也可手动编辑后保存。">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -132,12 +135,98 @@ export const ProfileSection = ({
             </span>
           )}
         </div>
+      </Field>
+
+      <Field
+        label="技术栈"
+        hint="每行一项，按熟悉程度排序。例：Vue3、TypeScript、Vite">
         <textarea
-          style={{ ...S.input, ...S.textarea }}
-          rows={6}
-          value={settings.userProfile}
-          placeholder={PROFILE_PLACEHOLDER}
-          onChange={(e) => patch({ userProfile: e.target.value })}
+          style={{ ...textareaStyle, minHeight: 72 }}
+          rows={3}
+          value={arrayToLines(profile.technical_stack)}
+          placeholder={"Vue3\nTypeScript\nVite"}
+          onChange={(e) =>
+            patchProfile({
+              ...profile,
+              technical_stack: linesToArray(e.target.value)
+            })
+          }
+          disabled={busy}
+        />
+      </Field>
+
+      <Field
+        label="工作背景"
+        hint="三行依次为：工作年限 / 当前角色 / 最近主要方向">
+        <textarea
+          style={{ ...textareaStyle, minHeight: 72 }}
+          rows={3}
+          value={formatWorkBackgroundText(profile.work_background)}
+          placeholder={
+            "3 年正式 + 3 个月实习\n前端开发工程师\n企业微信、小程序及 AI 产品开发"
+          }
+          onChange={(e) =>
+            patchProfile({
+              ...profile,
+              work_background: parseWorkBackgroundText(e.target.value)
+            })
+          }
+          disabled={busy}
+        />
+      </Field>
+
+      <Field
+        label="能力标签"
+        hint="每行一个短语，不超过 10 个。例：工程化、性能优化、组件库">
+        <textarea
+          style={{ ...textareaStyle, minHeight: 72 }}
+          rows={3}
+          value={arrayToLines(profile.capability_tags)}
+          placeholder={"工程化\n性能优化\n组件库"}
+          onChange={(e) =>
+            patchProfile({
+              ...profile,
+              capability_tags: linesToArray(e.target.value)
+            })
+          }
+          disabled={busy}
+        />
+      </Field>
+
+      <Field
+        label="代表经历"
+        hint="每行一条真实工作经历，3~5 条为宜">
+        <textarea
+          style={{ ...textareaStyle, minHeight: 96 }}
+          rows={4}
+          value={arrayToLines(profile.representative_experiences)}
+          placeholder={
+            "参与组件库建设，提高业务复用效率\n负责小程序性能优化，将关键页面渲染时间降低至 100ms"
+          }
+          onChange={(e) =>
+            patchProfile({
+              ...profile,
+              representative_experiences: linesToArray(e.target.value)
+            })
+          }
+          disabled={busy}
+        />
+      </Field>
+
+      <Field
+        label="求职方向"
+        hint="两行依次为：目标岗位 / 偏好业务或技术方向">
+        <textarea
+          style={{ ...textareaStyle, minHeight: 56 }}
+          rows={2}
+          value={formatJobPreferencesText(profile.job_preferences)}
+          placeholder={"前端开发工程师\nAI 产品、企业应用"}
+          onChange={(e) =>
+            patchProfile({
+              ...profile,
+              job_preferences: parseJobPreferencesText(e.target.value)
+            })
+          }
           disabled={busy}
         />
       </Field>

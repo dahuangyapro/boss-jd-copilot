@@ -1,7 +1,16 @@
 import { chatCompletion } from "~lib/ai/client"
+import {
+  buildJdAnalyzeMessages,
+  parseJdAnalysis
+} from "~lib/ai/jd-analyze-prompt"
 import { buildGreetingMessages } from "~lib/ai/prompts"
-import { buildResumeAnalysisMessages } from "~lib/ai/resume-prompt"
+import {
+  buildResumeAnalysisMessages,
+  parsePersonalProfile
+} from "~lib/ai/resume-prompt"
 import type {
+  AnalyzeJdRequest,
+  AnalyzeJdResponse,
   AnalyzeResumeRequest,
   AnalyzeResumeResponse,
   ExtensionMessage,
@@ -17,6 +26,17 @@ import { getAiSettings } from "~lib/storage/options"
  */
 chrome.runtime.onMessage.addListener(
   (msg: ExtensionMessage, _sender, sendResponse) => {
+    if (msg.type === "ANALYZE_JD") {
+      handleAnalyzeJd(msg)
+        .then(sendResponse)
+        .catch((e) =>
+          sendResponse({
+            ok: false,
+            error: e instanceof Error ? e.message : String(e)
+          } satisfies AnalyzeJdResponse)
+        )
+      return true
+    }
     if (msg.type === "GENERATE_GREETING") {
       handleGenerate(msg)
         .then(sendResponse)
@@ -50,11 +70,33 @@ chrome.runtime.onMessage.addListener(
   }
 )
 
+const handleAnalyzeJd = async (
+  req: AnalyzeJdRequest
+): Promise<AnalyzeJdResponse> => {
+  const settings = await getAiSettings()
+  const messages = buildJdAnalyzeMessages(req.job.jdText)
+  const result = await chatCompletion(messages, settings, {
+    temperature: 0.2,
+    maxTokens: 1200
+  })
+
+  if (result.ok === false) {
+    return { ok: false, error: result.error }
+  }
+
+  const parsed = parseJdAnalysis(result.text)
+  if (parsed.ok === false) {
+    return { ok: false, error: parsed.error }
+  }
+
+  return { ok: true, analysis: parsed.analysis }
+}
+
 const handleGenerate = async (
   req: GenerateGreetingRequest
 ): Promise<GenerateGreetingResponse> => {
   const settings = await getAiSettings()
-  const messages = buildGreetingMessages(req.job, settings)
+  const messages = buildGreetingMessages(settings, req.jdAnalysis)
   const result = await chatCompletion(messages, settings)
 
   // 项目 tsconfig 是 strict:false，需用 === 显式比较才能让 TS 收窄 discriminated union
@@ -79,15 +121,19 @@ const handleAnalyzeResume = async (
 ): Promise<AnalyzeResumeResponse> => {
   const settings = await getAiSettings()
   const messages = buildResumeAnalysisMessages(req.resumeText)
-  // 简历画像偏事实抽取，调低温度更稳；token 上调以容下 10 行画像
   const result = await chatCompletion(messages, settings, {
-    temperature: 0.3,
-    maxTokens: 800
+    temperature: 0.2,
+    maxTokens: 1200
   })
 
   if (result.ok === false) {
     return { ok: false, error: result.error }
   }
 
-  return { ok: true, profile: result.text }
+  const parsed = parsePersonalProfile(result.text)
+  if (parsed.ok === false) {
+    return { ok: false, error: parsed.error }
+  }
+
+  return { ok: true, profile: parsed.profile }
 }

@@ -7,8 +7,8 @@ import {
   saveAiSettings,
   type AiSettings
 } from "~lib/storage/options"
+import { personalProfilesEqual } from "~lib/storage/profile"
 
-import { GreetingSection } from "./GreetingSection"
 import { ProfileSection } from "./ProfileSection"
 import { ProviderSection } from "./ProviderSection"
 import { S, SaveCard, type Patcher } from "./ui"
@@ -16,22 +16,22 @@ import { S, SaveCard, type Patcher } from "./ui"
 /**
  * 字段按"卡片"归属：
  *  - Provider 卡：baseURL / apiKey / model
- *  - Content 卡：userProfile / tone / customPrompt
+ *  - Content 卡：personalProfile
  * 每张卡独立保存按钮；保存时**只覆盖**自己关心的字段，从 storage 拉其他字段原值
  * 拼回去——这样在两张卡都改了但只按其中一张保存按钮的场景下，未保存那张的字段
  * 不会被误写入。
  */
 const PROVIDER_FIELDS = ["baseURL", "apiKey", "model"] as const
-const CONTENT_FIELDS = ["userProfile", "tone", "customPrompt"] as const
-
 type ProviderField = (typeof PROVIDER_FIELDS)[number]
-type ContentField = (typeof CONTENT_FIELDS)[number]
 
 const isDirty = (
   a: AiSettings,
   b: AiSettings,
-  fields: readonly (ProviderField | ContentField)[]
+  fields: readonly ProviderField[]
 ): boolean => fields.some((f) => a[f] !== b[f])
+
+const isContentDirty = (a: AiSettings, b: AiSettings): boolean =>
+  !personalProfilesEqual(a.personalProfile, b.personalProfile)
 
 const OptionsPage = () => {
   const [stored, setStored] = useState<AiSettings>(DEFAULT_AI_SETTINGS)
@@ -57,7 +57,7 @@ const OptionsPage = () => {
   }, [])
 
   const providerDirty = isDirty(settings, stored, PROVIDER_FIELDS)
-  const contentDirty = isDirty(settings, stored, CONTENT_FIELDS)
+  const contentDirty = isContentDirty(settings, stored)
 
   /**
    * Provider 卡保存：先 user-gesture 触发 permission.request（Chrome 拒绝非手势调用），
@@ -93,9 +93,7 @@ const OptionsPage = () => {
       const latest = await getAiSettings()
       const next: AiSettings = {
         ...latest,
-        userProfile: settings.userProfile,
-        tone: settings.tone,
-        customPrompt: settings.customPrompt
+        personalProfile: settings.personalProfile
       }
       await saveAiSettings(next)
       setStored(next)
@@ -133,7 +131,6 @@ const OptionsPage = () => {
           savedAt={contentSavedAt}
           busy={contentBusy}>
           <ProfileSection settings={settings} patch={patch} />
-          <GreetingSection settings={settings} patch={patch} />
         </SaveCard>
       </div>
     </div>

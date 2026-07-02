@@ -70,7 +70,10 @@ const getCleanText = (element: Element | null): string => {
 }
 
 const cleanHrName = (raw: string): string =>
-  raw.replace(/刚刚活跃|今日活跃|在线/g, "").split("\n")[0].trim()
+  raw
+    .replace(/刚刚活跃|今日活跃|在线/g, "")
+    .split("\n")[0]
+    .trim()
 
 const parseCompanyAndTitle = (
   raw: string
@@ -106,9 +109,7 @@ export const extractJobDetail = (
   const jdText = getCleanText(jdEl)
   if (!jdText) return null
 
-  const hrName = cleanHrName(
-    getCleanText(document.querySelector(sel.hrName))
-  )
+  const hrName = cleanHrName(getCleanText(document.querySelector(sel.hrName)))
   const { company, hrTitle } = parseCompanyAndTitle(
     getCleanText(document.querySelector(sel.companyAttr))
   )
@@ -181,8 +182,7 @@ export const getJobKey = (job: ExtractedJob): string => {
   const pathMatch = url.pathname.match(/\/job_detail\/([^/.?]+)/)
   if (pathMatch?.[1]) return `id:${pathMatch[1]}`
   // /web/geek/jobs?...&jobId=<id> 或类似 query 参数
-  const qJobId =
-    url.searchParams.get("jobId") ?? url.searchParams.get("job_id")
+  const qJobId = url.searchParams.get("jobId") ?? url.searchParams.get("job_id")
   if (qJobId) return `id:${qJobId}`
   return `composite:${job.company}|${job.title}`
 }

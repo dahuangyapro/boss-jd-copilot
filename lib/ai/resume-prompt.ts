@@ -1,62 +1,48 @@
+// Plasmo/Parcel：以纯文本打包 lib/prompts/personal-profile-analysis.md
+import PROFILE_SYSTEM from "data-text:~lib/prompts/personal-profile-analysis.md"
+
 import type { ChatMessages } from "~lib/ai/prompts"
-
-/**
- * 把简历压缩成"结构化的个人画像"——给 AI 看的"匹配雷达"，不是简历副本。
- *
- * 为什么强制 4 段固定结构：下游招呼语 prompt 需要在 JD 与画像之间做精准匹配。
- * 如果画像是叙事化的（"我做过 X，做过 Y…"），模型容易盯着最有 wow 的项目讲，
- * 忽略 JD 真正在问的硬技能。结构化后，下游可以明确指令"从【技术栈】里找 JD 要
- * 的硬技能，从【代表项目】里找业务匹配，不要拿无关亮点凑数"。
- */
-const SYSTEM = `你是一名经验丰富的招聘顾问，正在帮求职者把简历压缩成一段**结构化的"个人画像"**。
-这段画像会被另一个 AI 用来跟岗位 JD 做匹配，生成针对性的招呼语。
-所以你的产出**不是给人读的简历摘要，而是给 AI 用的匹配信息源**。
-
-必须严格遵守以下四段结构，**标题原样保留（含【】）**，段落顺序不可调换：
-
-【技术栈】
-- 一行内，用 / 或 、 分隔
-- 10-20 个，按熟练度从高到低排
-- **只列简历中明确出现的**，不展开描述、不分类、不补充任何主观判断
-- 例：Vue 3 / TypeScript / Next.js / uni-app / Webpack / Vite / Node.js / Git
-
-【工作年限与角色】
-- 一句话写清：X 年（含 N 个月正式 + M 个月实习），主做 W 类岗位
-- 应届生写明毕业年份 + 实习/正式经验时长
-- 不要堆形容词
-
-【代表项目】
-3-5 条，每条一行，格式：
-- <一句话场景> + <做了什么> + <结果或数字（若简历中有）>
-
-**重要：必须保持业务广度，不要只选最"亮"的项目。**
-- 如果简历里有日常需求迭代、通用组件 / 工具库沉淀、性能优化、跨端适配、规范建设、CI/Lint/测试等"基础但岗位常问"的工作，**这类也要选进来**——它们往往是 JD 的硬要求。
-- 不要 3 条全是带数字的"研发周期缩短 X%""延迟降低到 Y ms"这类亮点项目，会让画像偏向"个人英雄主义"，匹配普通岗位时反而扣分。
-
-【求职方向】
-- 一句话：目标岗位 + 偏好的业务/技术领域
-- 简历未明确写时，结合最近经历自然推断（不编造）
-
-通用约束：
-- **不要编造任何未在简历中出现的经验、技能、公司、数字**
-- 第一人称或省略主语；不要"求职者"
-- 不要 Markdown 标题（# / *）、不要 emoji、不要"以下是…"前缀
-- 不要复制联系方式、教育细节、证书清单
-- 不要加形容词（"优秀的""资深的"等）
-- 整段 10-15 行；超出说明项目选太多
-- 输出会被直接保存到设置页 textarea 并参与后续 prompt，**不能带任何元话语**（"以上是您的画像"等）`
+import {
+  normalizePersonalProfile,
+  type PersonalProfile
+} from "~lib/storage/profile"
 
 const USER = (resumeText: string) =>
-  `这是从用户上传的 PDF 简历里提取的原始文本（OCR / 排版偶有错乱，请忽略明显的格式噪音）：
+  `请分析以下从 PDF 提取的简历文本，严格按 system 要求的 JSON schema 输出：
 
 【简历原文】
-${resumeText}
-
-请按上述四段结构输出个人画像。`
+${resumeText}`
 
 export const buildResumeAnalysisMessages = (
   resumeText: string
 ): ChatMessages => ({
-  system: SYSTEM,
+  system: PROFILE_SYSTEM,
   user: USER(resumeText)
 })
+
+/** 模型偶发包裹 ```json fence，剥掉后再 parse */
+const extractJsonText = (raw: string): string => {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith("{")) return trimmed
+  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/i)
+  if (fenced) return fenced[1].trim()
+  const start = trimmed.indexOf("{")
+  const end = trimmed.lastIndexOf("}")
+  if (start >= 0 && end > start) return trimmed.slice(start, end + 1)
+  return trimmed
+}
+
+export const parsePersonalProfile = (
+  raw: string
+): { ok: true; profile: PersonalProfile } | { ok: false; error: string } => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(extractJsonText(raw))
+  } catch {
+    return { ok: false, error: "简历分析结果不是合法 JSON，请重试" }
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return { ok: false, error: "简历分析结果格式无效" }
+  }
+  return { ok: true, profile: normalizePersonalProfile(parsed) }
+}

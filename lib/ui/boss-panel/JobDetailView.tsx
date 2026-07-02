@@ -1,38 +1,13 @@
-import { useEffect, useState } from "react"
-
-import {
-  extractJobDetail,
-  getJobKey,
-  observeJobDetail,
-  type ExtractedJob
-} from "~lib/boss/dom-job-detail"
-import { triggerListChatJump } from "~lib/boss/list-startchat"
 import type { JobDetailPageType } from "~lib/boss/pages"
-import { fillStartchatTextarea } from "~lib/boss/startchat-dialog"
-import type {
-  GenerateGreetingRequest,
-  GenerateGreetingResponse
-} from "~lib/messages"
+import { useGreetingActions } from "~lib/hooks/useGreetingActions"
+import { useGreetingGeneration } from "~lib/hooks/useGreetingGeneration"
+import { useJobDetail } from "~lib/hooks/useJobDetail"
 
 import {
   BTN,
-  CONTEXT_DEAD_MSG,
-  isExtensionAlive,
   MetaRow,
   requestOpenOptions
 } from "./ui"
-
-type GreetingState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "ready"; text: string }
-  | { kind: "error"; message: string }
-
-type FillState =
-  | { kind: "idle" }
-  | { kind: "filling" }
-  | { kind: "filled" }
-  | { kind: "error"; message: string }
 
 export const JobDetailView = ({
   urlKey,
@@ -41,132 +16,12 @@ export const JobDetailView = ({
   urlKey: string
   pageType: JobDetailPageType
 }) => {
-  const [job, setJob] = useState<ExtractedJob | null>(null)
-  const [status, setStatus] = useState<"waiting" | "ready">("waiting")
-  const [greeting, setGreeting] = useState<GreetingState>({ kind: "idle" })
-  const [copied, setCopied] = useState(false)
-  const [jdCopied, setJdCopied] = useState(false)
-  const [fill, setFill] = useState<FillState>({ kind: "idle" })
+  const { job, reextract, isWaiting } = useJobDetail(urlKey, pageType)
+  const { greeting, generate, isGenerating } = useGreetingGeneration(job)
+  const { fill, copied, jdCopied, copy, copyJd, fillToChat } =
+    useGreetingActions({ job, pageType, greeting })
 
-  // URL 变化时重新订阅；推荐页 observer 会持续监听，详情页则首次抽到后即断开
-  useEffect(() => {
-    setJob(null)
-    setStatus("waiting")
-    setGreeting({ kind: "idle" })
-    setCopied(false)
-    setJdCopied(false)
-    setFill({ kind: "idle" })
-    const cleanup = observeJobDetail(pageType, (next) => {
-      setJob(next)
-      setStatus("ready")
-      // 切换到新 JD 后旧招呼语作废，避免误以为是新岗位生成的
-      setGreeting({ kind: "idle" })
-      setFill({ kind: "idle" })
-    })
-    return cleanup
-  }, [urlKey, pageType])
-
-  const reextract = () => {
-    const next = extractJobDetail(pageType)
-    if (next) {
-      setJob(next)
-      setStatus("ready")
-    }
-  }
-
-  const generate = async () => {
-    if (!job) return
-    if (!isExtensionAlive()) {
-      setGreeting({ kind: "error", message: CONTEXT_DEAD_MSG })
-      return
-    }
-    setGreeting({ kind: "loading" })
-    setCopied(false)
-    const req: GenerateGreetingRequest = {
-      type: "GENERATE_GREETING",
-      jobKey: getJobKey(job),
-      job
-    }
-    try {
-      const resp = (await chrome.runtime.sendMessage(req)) as
-        | GenerateGreetingResponse
-        | undefined
-      if (!resp) {
-        setGreeting({
-          kind: "error",
-          message: "background 无响应，请确认扩展已重新加载"
-        })
-        return
-      }
-      // 项目 tsconfig 是 strict:false，用 === 显式比较以触发联合类型收窄
-      if (resp.ok === true) {
-        setGreeting({ kind: "ready", text: resp.greeting })
-      } else {
-        setGreeting({ kind: "error", message: resp.error })
-      }
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e)
-      const friendly = /Extension context invalidated|sendMessage/i.test(raw)
-        ? CONTEXT_DEAD_MSG
-        : raw
-      setGreeting({ kind: "error", message: friendly })
-    }
-  }
-
-  const copy = async () => {
-    if (greeting.kind !== "ready") return
-    try {
-      await navigator.clipboard.writeText(greeting.text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      // 剪贴板权限失败兜底：选中文本让用户手动复制
-      setCopied(false)
-    }
-  }
-
-  const fillToChat = async () => {
-    if (greeting.kind !== "ready") return
-    setFill({ kind: "filling" })
-    // 详情页：尝试在同页「立即沟通」浮窗里直接填入（首次沟通该 HR 时成功）；
-    // 推荐列表页：没有同页浮窗，只能触发跳转 chat 页，由 ChatView 接管自动填入
-    const result =
-      pageType === "job_recommend"
-        ? await triggerListChatJump()
-        : await fillStartchatTextarea(greeting.text)
-    // strict:false 下三元 union 的 narrow 不工作，用 === false 显式比较（项目通用模式）
-    if (result.ok === false) {
-      setFill({ kind: "error", message: result.reason })
-      return
-    }
-    setFill({ kind: "filled" })
-    // 列表页跳转后 content script 即将销毁，filled 状态用户基本看不到；
-    // 详情页留在原地，2 秒后回到 idle 让按钮可再次点击
-    setTimeout(() => {
-      setFill((cur) => (cur.kind === "filled" ? { kind: "idle" } : cur))
-    }, 2000)
-  }
-
-  const copyJd = async () => {
-    if (!job) return
-    // 复制时带上职位 + 公司头部，方便贴到其他 AI 工具时无需补充上下文
-    const payload = [
-      `【职位】${job.title || "—"}`,
-      `【公司】${job.company || "—"}`,
-      "",
-      "【JD】",
-      job.jdText
-    ].join("\n")
-    try {
-      await navigator.clipboard.writeText(payload)
-      setJdCopied(true)
-      setTimeout(() => setJdCopied(false), 1800)
-    } catch {
-      setJdCopied(false)
-    }
-  }
-
-  if (status === "waiting" || !job) {
+  if (isWaiting || !job) {
     return (
       <div style={{ color: "#64748b", padding: "8px 0" }}>
         等待 JD 渲染…若长时间无响应，请确认页面已加载完成。
@@ -217,16 +72,16 @@ export const JobDetailView = ({
         </button>
         <button
           onClick={generate}
-          disabled={greeting.kind === "loading"}
+          disabled={isGenerating}
           style={{
             ...BTN.primary,
             flex: 1,
-            ...(greeting.kind === "loading"
-              ? { background: "#7dd3fc", cursor: "wait" }
-              : {})
+            ...(isGenerating ? { background: "#7dd3fc", cursor: "wait" } : {})
           }}>
           {greeting.kind === "loading"
-            ? "生成中…"
+            ? greeting.phase === "analyzing_jd"
+              ? "分析 JD 中…"
+              : "生成招呼语中…"
             : greeting.kind === "ready"
               ? "重新生成"
               : "生成招呼语"}

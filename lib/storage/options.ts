@@ -1,27 +1,27 @@
 import { STORAGE_KEYS } from "~lib/storage/keys"
+import {
+  DEFAULT_PERSONAL_PROFILE,
+  normalizePersonalProfile,
+  personalProfileFromLegacyText,
+  type PersonalProfile
+} from "~lib/storage/profile"
 
-export type GreetingTone = "concise" | "detailed" | "casual" | "formal"
+export type { PersonalProfile } from "~lib/storage/profile"
 
 export type AiSettings = {
   /** OpenAI 兼容协议的 baseURL，末尾不带 /chat/completions，由 client 自动拼接 */
   baseURL: string
   apiKey: string
   model: string
-  /** 求职者自述（经验、技能、求职方向）；prompt 中作为"我的画像"段落注入 */
-  userProfile: string
-  /** 快速预设的招呼语风格；当 customPrompt 为空时生效 */
-  tone: GreetingTone
-  /** 用户自定义系统 prompt；非空时**整段**顶替预设。用户可"加载预设到编辑器"再改 */
-  customPrompt: string
+  /** 结构化个人画像；prompt 中作为 Candidate Profile 注入 */
+  personalProfile: PersonalProfile
 }
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   baseURL: "https://api.deepseek.com/v1",
   apiKey: "",
   model: "deepseek-v4-flash",
-  userProfile: "",
-  tone: "concise",
-  customPrompt: ""
+  personalProfile: { ...DEFAULT_PERSONAL_PROFILE }
 }
 
 /**
@@ -63,13 +63,6 @@ export const PROVIDER_PRESETS = [
   { name: "自定义", baseURL: "", model: "" }
 ] as const
 
-export const TONE_LABELS: Record<GreetingTone, string> = {
-  concise: "简洁（60-100 字）",
-  detailed: "详尽（120-180 字）",
-  casual: "自然口语",
-  formal: "正式礼貌"
-}
-
 /**
  * 这三个 helper 都是空字符串/无效 URL 时返回 false/null，调用方按业务给提示。
  */
@@ -106,12 +99,22 @@ export const requestBaseUrlPermission = async (
   }
 }
 
+type StoredAiSettings = Partial<AiSettings> & { userProfile?: string }
+
 export const getAiSettings = async (): Promise<AiSettings> => {
   const result = await chrome.storage.local.get(STORAGE_KEYS.aiSettings)
-  const stored = result[STORAGE_KEYS.aiSettings] as
-    | Partial<AiSettings>
-    | undefined
-  return { ...DEFAULT_AI_SETTINGS, ...(stored ?? {}) }
+  const stored = result[STORAGE_KEYS.aiSettings] as StoredAiSettings | undefined
+  const merged = { ...DEFAULT_AI_SETTINGS, ...(stored ?? {}) }
+
+  if (stored?.personalProfile) {
+    merged.personalProfile = normalizePersonalProfile(stored.personalProfile)
+  } else if (typeof stored?.userProfile === "string") {
+    merged.personalProfile = personalProfileFromLegacyText(stored.userProfile)
+  } else {
+    merged.personalProfile = normalizePersonalProfile(merged.personalProfile)
+  }
+
+  return merged
 }
 
 export const saveAiSettings = async (settings: AiSettings): Promise<void> => {

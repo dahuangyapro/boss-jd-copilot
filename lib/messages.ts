@@ -1,9 +1,28 @@
 import type { ExtractedJob } from "~lib/boss/dom-job-detail"
+import type { PersonalProfile } from "~lib/storage/profile"
+
+/** jd-analyze.md 输出的四类结构化标签 */
+export type JdAnalysis = {
+  position_features: string[]
+  business_features: string[]
+  technical_stack: string[]
+  generic_responsibilities: string[]
+}
+
+export type AnalyzeJdRequest = {
+  type: "ANALYZE_JD"
+  job: ExtractedJob
+}
+
+export type AnalyzeJdResponse =
+  | { ok: true; analysis: JdAnalysis }
+  | { ok: false; error: string }
 
 export type GenerateGreetingRequest = {
   type: "GENERATE_GREETING"
   jobKey: string
   job: ExtractedJob
+  jdAnalysis: JdAnalysis
 }
 
 export type GenerateGreetingResponse =
@@ -21,10 +40,11 @@ export type AnalyzeResumeRequest = {
 }
 
 export type AnalyzeResumeResponse =
-  | { ok: true; profile: string }
+  | { ok: true; profile: PersonalProfile }
   | { ok: false; error: string }
 
 export type ExtensionMessage =
+  | AnalyzeJdRequest
   | GenerateGreetingRequest
   | OpenOptionsRequest
   | DebugLogRequest
